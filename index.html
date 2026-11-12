@@ -91,12 +91,16 @@
   .livebar .dim { opacity: .75; font-weight: 500; }
   .tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid var(--s2);
-    display: grid; grid-template-columns: repeat(6, 1fr); height: calc(var(--tabh) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
+    display: grid; grid-template-columns: repeat(7, 1fr); height: calc(var(--tabh) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
   }
-  .tabbar button { border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--s5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .tabbar button { border: 0; background: none; font: inherit; font-size: 10.5px; font-weight: 600; color: var(--s5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .tabbar button svg { width: 23px; height: 23px; }
   .tabbar button.active { color: var(--g7); }
   .tabbar button.active svg { stroke: var(--g7); }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .seg button { padding: 10px 4px; border-radius: 11px; border: 1px solid var(--s3); background: var(--s0); font: inherit; font-weight: 700; font-size: 13.5px; color: var(--s7); }
+  .seg button.on { background: var(--g7); border-color: var(--g7); color: #fff; }
+  .sketchbox > svg { display: block; width: 100%; height: auto; }
   .pill { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--g1); color: var(--g8); }
   .list-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--s2); }
   .list-item:last-child { border-bottom: 0; }
@@ -270,6 +274,18 @@
     </div>
   </section>
 
+  <!-- ================= TAB: PARTITION / ADDITION / DEDUCTION ================= -->
+  <section id="tab-part" class="tab">
+    <div class="card">
+      <div class="seg" id="ptSeg">
+        <button type="button" data-m="part" class="on" onclick="setPtMode('part')">ഭാഗിക്കൽ</button>
+        <button type="button" data-m="add" onclick="setPtMode('add')">കൂട്ടിച്ചേർക്കൽ</button>
+        <button type="button" data-m="ded" onclick="setPtMode('ded')">ഒഴിവാക്കൽ</button>
+      </div>
+    </div>
+    <div id="ptBody"></div>
+  </section>
+
   <!-- ================= TAB 4: DETAILS ================= -->
   <section id="tab-details" class="tab">
     <div class="card">
@@ -376,6 +392,8 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l3-12 10 2 3 9z"/><circle cx="4" cy="18" r="1.5"/><circle cx="7" cy="6" r="1.5"/><circle cx="17" cy="8" r="1.5"/><circle cx="20" cy="17" r="1.5"/></svg>സ്കെച്ച്</button>
   <button type="button" data-tab="result" onclick="showTab('result')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>ഫലം</button>
+  <button type="button" data-tab="part" onclick="showTab('part')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l7-3 11 4-2 13-15-2z"/><path d="M10 3l-2 16" stroke-dasharray="3 2"/></svg>ഭാഗം</button>
   <button type="button" data-tab="details" onclick="showTab('details')">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>വിവരം</button>
   <button type="button" data-tab="gps" onclick="showTab('gps')">
@@ -422,6 +440,9 @@ function blankState() {
     d: { name: '', owner: '', survey: '', village: '', date: todayIso(), north: '', east: '', south: '', west: '', by: '', notes: '' },
     check: { a: 1, b: 3, len: '' },
     gps: [],
+    part: { method: 'area_par', edge: 0, equalN: '', shares: '', unitA: 'cent', corner: 0, cTarget: '', cOther: false, e1: 0, d1: '', e2: 2, d2: '' },
+    add: { plotId: '', myEdge: 0, otherEdge: 0 },
+    deductions: [],
     shape: null // drawn outline: normalized math coords [{x,y}] in 0..1, order = A,B,C...
   };
 }
@@ -429,6 +450,9 @@ function blankState() {
 let S = Object.assign(blankState(), storeGet(STORE_CUR) || {});
 S.d = Object.assign(blankState().d, S.d || {});
 S.check = Object.assign(blankState().check, S.check || {});
+S.part = Object.assign(blankState().part, S.part || {});
+S.add = Object.assign(blankState().add, S.add || {});
+S.deductions = Array.isArray(S.deductions) ? S.deductions : [];
 let R = null; // last computation
 
 function toast(msg) {
@@ -450,17 +474,17 @@ function diagTargets(n, k) {
   return t;
 }
 
-function compute() {
-  const n = S.n, k = mod(S.base, n), f = LEN[S.unit] || 1;
-  const side = (i) => num(S.sides[mod(i, n)]) * f;
-  const diag = (v) => num(S.diags[v]) * f;
+function compute(st = S) {
+  const n = st.n, k = mod(st.base, n), f = LEN[st.unit] || 1;
+  const side = (i) => num(st.sides[mod(i, n)]) * f;
+  const diag = (v) => num(st.diags[v]) * f;
   const res = { n, k, P: new Array(n).fill(null), tris: [], errors: [], warnings: [], missing: [], ok: false, badSides: new Set(), badDiags: new Set() };
 
   for (let i = 0; i < n; i++) if (!(side(i) > 0)) res.missing.push(`${lbl(i)}${lbl(mod(i + 1, n))}`);
   diagTargets(n, k).forEach(v => { if (!(diag(v) > 0)) res.missing.push(`${lbl(k)}${lbl(v)}`); });
   if (res.missing.length) return res;
 
-  const sign = S.dir === 'ccw' ? 1 : -1; // cw walk => next points fall to the right
+  const sign = st.dir === 'ccw' ? 1 : -1; // cw walk => next points fall to the right
   res.P[k] = { x: 0, y: 0 };
   res.P[mod(k + 1, n)] = { x: side(k), y: 0 };
 
@@ -477,14 +501,14 @@ function compute() {
     const tri = `${lbl(k)}-${lbl(a)}-${lbl(v)}`;
     if (h2 < -tol) {
       const longest = Math.max(d, r1, r2);
-      res.errors.push(`ത്രികോണം ${tri}: അളവുകൾ പൊരുത്തപ്പെടുന്നില്ല. ഏറ്റവും വലിയ വശം (${fmt(longest / f)} ${LEN_NAME[S.unit]}) മറ്റ് രണ്ട് വശങ്ങളുടെയും തുകയേക്കാൾ കൂടുതലാണ്. ഈ മൂന്ന് അളവുകൾ വീണ്ടും പരിശോധിക്കുക.`);
+      res.errors.push(`ത്രികോണം ${tri}: അളവുകൾ പൊരുത്തപ്പെടുന്നില്ല. ഏറ്റവും വലിയ വശം (${fmt(longest / f)} ${LEN_NAME[st.unit]}) മറ്റ് രണ്ട് വശങ്ങളുടെയും തുകയേക്കാൾ കൂടുതലാണ്. ഈ മൂന്ന് അളവുകൾ വീണ്ടും പരിശോധിക്കുക.`);
       res.badSides.add(a); if (j === n - 2) res.badSides.add(mod(k - 1, n)); else res.badDiags.add(v);
       if (j === 1) res.badSides.add(k); else res.badDiags.add(a);
       return res;
     }
     h2 = Math.max(0, h2);
     const h = Math.sqrt(h2);
-    const sgn = sign * (S.flips[v] ? -1 : 1);
+    const sgn = sign * (st.flips[v] ? -1 : 1);
     res.P[v] = { x: Pk.x + ux * x - uy * h * sgn, y: Pk.y + uy * x + ux * h * sgn };
     const s = (d + r1 + r2) / 2;
     const heron = Math.sqrt(Math.max(0, s * (s - d) * (s - r1) * (s - r2)));
@@ -711,7 +735,9 @@ function update() {
   document.getElementById('measureMsgs').innerHTML = msgs.join('');
 
   const bar = document.getElementById('liveBar');
-  if (R.ok) bar.innerHTML = `${fmt(R.area / SQM_PER.cent)} സെന്റ് <span class="dim">| ${fmt(R.area)} ച.മീ | ${fmt(R.area / SQM_PER.acre, 3)} ഏക്കർ</span>`;
+  const dedT = totalDeduction();
+  if (R.ok && dedT > 0) bar.innerHTML = `ബാക്കി ${fmt((R.area - dedT) / SQM_PER.cent)} സെന്റ് <span class="dim">| ആകെ ${fmt(R.area / SQM_PER.cent)} − ${fmt(dedT / SQM_PER.cent)}</span>`;
+  else if (R.ok) bar.innerHTML = `${fmt(R.area / SQM_PER.cent)} സെന്റ് <span class="dim">| ${fmt(R.area)} ച.മീ | ${fmt(R.area / SQM_PER.acre, 3)} ഏക്കർ</span>`;
   else if (R.errors.length) bar.innerHTML = `⚠ അളവുകളിൽ പൊരുത്തക്കേട്`;
   else bar.innerHTML = `<span class="dim">ഇനി വേണ്ടത്: ${R.missing.length} അളവുകൾ</span>`;
 
@@ -738,6 +764,7 @@ function renderResult() {
       <div class="bigsub">${fmt(a)} ച.മീ &nbsp;•&nbsp; ${areaParts(a)}</div>
       <div class="bigsub" style="margin-top:4px">ചുറ്റളവ്: ${fmt(R.perimeter / f)} ${LEN_NAME[S.unit]}${S.unit !== 'm' ? ` (${fmt(R.perimeter)} മീ)` : ''}</div>
     </div>
+    ${(() => { const dd = totalDeduction(); if (!(dd > 0)) return ''; const net = a - dd; return `<div class="card"><h2>ഒഴിവാക്കലിന് ശേഷം</h2><table class="t">${S.deductions.map(x => { const v = dedArea(x); return v > 0 ? `<tr><td>${esc(x.name || 'ഒഴിവാക്കൽ')}</td><td class="n">− ${fmt(v / SQM_PER.cent)} സെന്റ് (${fmt(v)} ച.മീ)</td></tr>` : ''; }).join('')}<tr><th>ബാക്കി (Net)</th><td class="n"><b>${fmt(net / SQM_PER.cent)} സെന്റ് (${fmt(net)} ച.മീ)</b></td></tr></table></div>`; })()}
     ${R.warnings.map(w => `<div class="msg warn">${esc(w)}</div>`).join('')}
     <div class="card">
       <h2>എല്ലാ യൂണിറ്റിലും</h2>
@@ -1070,6 +1097,506 @@ function padApply() {
 })();
 
 // ============================================================================
+// ഭാഗം: Partition / Addition (amalgamation) / Deduction
+// ============================================================================
+const PART_COLORS = ['#bbf7d0', '#bfdbfe', '#fde68a', '#fbcfe8', '#ddd6fe', '#fecaca', '#a5f3fc', '#fed7aa'];
+const PT = { mode: 'part', lastPart: null, lastAdd: null };
+
+function polyArea(L) { return Math.abs(signedArea(L)); }
+function centroidOf(L) {
+  let a = 0, cx = 0, cy = 0;
+  for (let i = 0; i < L.length; i++) {
+    const p = L[i], q = L[mod(i + 1, L.length)], c = p.x * q.y - q.x * p.y;
+    a += c; cx += (p.x + q.x) * c; cy += (p.y + q.y) * c;
+  }
+  if (Math.abs(a) < 1e-12) return { x: L.reduce((s, p) => s + p.x, 0) / L.length, y: L.reduce((s, p) => s + p.y, 0) / L.length };
+  return { x: cx / (3 * a), y: cy / (3 * a) };
+}
+function rotator() {
+  const b = num(S.bearing);
+  if (!isFinite(b) || !R || !R.ok) return { f: p => p, north: false };
+  const P = R.P, th = Math.atan2(P[1].y - P[0].y, P[1].x - P[0].x);
+  const r = (90 - b) * Math.PI / 180 - th, c = Math.cos(r), s = Math.sin(r);
+  return { f: p => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c }), north: true };
+}
+// Sutherland-Hodgman against the half plane g(p) <= d (keepLess) or g(p) >= d
+function clipHalf(poly, g, d, keepLess) {
+  const inside = p => keepLess ? g(p) <= d + 1e-9 : g(p) >= d - 1e-9;
+  const cut = (a, b) => { const ga = g(a) - d, gb = g(b) - d, t = ga / (ga - gb); return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; };
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const cur = poly[i], prev = poly[mod(i - 1, poly.length)];
+    const ci = inside(cur), pi = inside(prev);
+    if (ci) { if (!pi) out.push(cut(prev, cur)); out.push(cur); }
+    else if (pi) out.push(cut(prev, cur));
+  }
+  return out;
+}
+function dedupe(L) {
+  const out = [];
+  L.forEach(p => { if (!out.length || dist(p, out[out.length - 1]) > 1e-7) out.push(p); });
+  while (out.length > 1 && dist(out[0], out[out.length - 1]) <= 1e-7) out.pop();
+  return out;
+}
+function locateOnBoundary(P, p) {
+  let best = null;
+  for (let i = 0; i < P.length; i++) {
+    const a = P[i], b = P[mod(i + 1, P.length)], L2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1e-12;
+    let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / L2; t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(a.x + (b.x - a.x) * t - p.x, a.y + (b.y - a.y) * t - p.y);
+    if (!best || d < best.d) best = { edge: i, t, d, len: Math.sqrt(L2) };
+  }
+  return best;
+}
+function chainText(P, p) {
+  const n = P.length, f = LEN[S.unit] || 1, u = LEN_NAME[S.unit], b = locateOnBoundary(P, p);
+  const s = lbl(b.edge), e = lbl(mod(b.edge + 1, n));
+  if (b.t * b.len < 0.005) return `മൂല ${s} തന്നെ`;
+  if ((1 - b.t) * b.len < 0.005) return `മൂല ${e} തന്നെ`;
+  return `${s}${e} വശത്ത് ${s}-യിൽ നിന്ന് <b>${fmt(b.t * b.len / f)} ${u}</b> (${e}-യിൽ നിന്ന് ${fmt((1 - b.t) * b.len / f)})`;
+}
+function chordInside(P, a, b) {
+  if (!pointInPoly({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, P)) return false;
+  for (let i = 0; i < P.length; i++) {
+    const p = P[i], q = P[mod(i + 1, P.length)];
+    if (segX(a, b, p, q)) return false;
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------- partition
+function doPartition() {
+  const P = R.P.map(p => ({ x: p.x, y: p.y }));
+  const n = P.length, total = R.area, f = LEN[S.unit] || 1, cfg = S.part;
+  const out = { parts: [], cuts: [], errors: [], warnings: [], desc: '' };
+  const sA = signedArea(P);
+
+  if (cfg.method === 'area_par') {
+    const e = mod(cfg.edge, n), A = P[e], B = P[mod(e + 1, n)], L = dist(A, B);
+    const u = { x: (B.x - A.x) / L, y: (B.y - A.y) / L };
+    const nr = sA > 0 ? { x: -u.y, y: u.x } : { x: u.y, y: -u.x };
+    const g = p => (p.x - A.x) * nr.x + (p.y - A.y) * nr.y;
+    const maxD = Math.max(...P.map(g));
+    const targets = [];
+    const N = parseInt(cfg.equalN, 10);
+    if (N >= 2) { for (let k = 1; k < N; k++) targets.push(total * k / N); }
+    else {
+      let acc = 0;
+      String(cfg.shares || '').split(/[,\s]+/).map(num).filter(x => x > 0).forEach(v => { acc += v * SQM_PER[cfg.unitA]; targets.push(acc); });
+    }
+    if (!targets.length) { out.errors.push('തുല്യ ഭാഗങ്ങളുടെ എണ്ണമോ, ഓരോ ഭാഗത്തിന്റെയും വിസ്തീർണ്ണമോ നൽകുക.'); return out; }
+    if (targets[targets.length - 1] >= total - 1e-6) {
+      out.errors.push(`ഭാഗങ്ങളുടെ ആകെ (${fmt(targets[targets.length - 1] / SQM_PER.cent)} സെന്റ്) ഭൂമിയുടെ വിസ്തീർണ്ണത്തേക്കാൾ (${fmt(total / SQM_PER.cent)} സെന്റ്) കുറവായിരിക്കണം.`);
+      return out;
+    }
+    const areaAt = d => polyArea(clipHalf(P, g, d, true));
+    const ds = targets.map(t => { let lo = 0, hi = maxD; for (let it = 0; it < 90; it++) { const m = (lo + hi) / 2; if (areaAt(m) < t) lo = m; else hi = m; } return (lo + hi) / 2; });
+    const bounds = [-1, ...ds, maxD + 1];
+    for (let k = 0; k < bounds.length - 1; k++) {
+      let poly = clipHalf(P, g, bounds[k + 1], true);
+      if (k > 0) poly = clipHalf(poly, g, bounds[k], false);
+      out.parts.push(dedupe(poly));
+    }
+    ds.forEach(d => {
+      const hits = [];
+      for (let i = 0; i < n; i++) {
+        const a = P[i], b = P[mod(i + 1, n)], ga = g(a) - d, gb = g(b) - d;
+        if ((ga < 0 && gb > 0) || (ga > 0 && gb < 0)) { const t = ga / (ga - gb); hits.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); }
+        else if (Math.abs(ga) < 1e-9) hits.push({ x: a.x, y: a.y });
+      }
+      hits.sort((p, q) => (p.x * u.x + p.y * u.y) - (q.x * u.x + q.y * u.y));
+      for (let h = 0; h + 1 < hits.length; h += 2) out.cuts.push([hits[h], hits[h + 1]]);
+      if (hits.length > 2) out.warnings.push('ഭൂമിയുടെ ആകൃതി കാരണം ഒരു ഭാഗവര ഒന്നിലധികം കഷണങ്ങളായി മുറിയുന്നു. ഭാഗങ്ങൾ ഒരുമിച്ച് കിടക്കണമെങ്കിൽ മറ്റൊരു വശമോ "മൂലയിൽ നിന്ന്" രീതിയോ നോക്കുക.');
+    });
+    out.desc = `${lbl(e)}${lbl(mod(e + 1, n))} വശത്തിന് സമാന്തരമായി ഭാഗിച്ചത്; ഭാഗം 1 ഈ വശത്തോട് ചേർന്നത്.`;
+  } else if (cfg.method === 'area_corner') {
+    const c = mod(cfg.corner, n);
+    const per = P.reduce((s, p, i) => s + dist(p, P[mod(i + 1, n)]), 0);
+    const target = num(cfg.cTarget) * SQM_PER[cfg.unitA];
+    if (!(target > 0)) { out.errors.push('ഭാഗിക്കേണ്ട വിസ്തീർണ്ണം നൽകുക.'); return out; }
+    if (target >= total - 1e-6) { out.errors.push(`ഭാഗിക്കേണ്ട വിസ്തീർണ്ണം ഭൂമിയുടെ വിസ്തീർണ്ണത്തേക്കാൾ (${fmt(total / SQM_PER.cent)} സെന്റ്) കുറവായിരിക്കണം.`); return out; }
+    const pointAt = s => {
+      let rem = s;
+      for (let m = 0; m < n; m++) {
+        const a = P[mod(c + m, n)], b = P[mod(c + m + 1, n)], L = dist(a, b);
+        if (rem <= L || m === n - 1) { const t = Math.min(1, rem / L); return { m, p: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t } }; }
+        rem -= L;
+      }
+    };
+    const piece = s => { const { m, p } = pointAt(s), poly = [P[c]]; for (let k = 1; k <= m; k++) poly.push(P[mod(c + k, n)]); poly.push(p); return poly; };
+    const want = cfg.cOther ? total - target : target;
+    let lo = 0, hi = per;
+    for (let it = 0; it < 90; it++) { const m = (lo + hi) / 2; if (polyArea(piece(m)) < want) lo = m; else hi = m; }
+    const s = (lo + hi) / 2, part1 = dedupe(piece(s));
+    if (Math.abs(polyArea(part1) - want) > 0.002 * total) { out.errors.push(`${lbl(c)} മൂലയിൽ നിന്ന് ഒരൊറ്റ നേർവര കൊണ്ട് ഈ വിസ്തീർണ്ണം ഭാഗിക്കാൻ കഴിയുന്നില്ല. മറ്റൊരു മൂലയോ "സമാന്തരമായി" രീതിയോ നോക്കുക.`); return out; }
+    const { m, p } = pointAt(s), part2 = [p];
+    for (let k = m + 1; k <= n; k++) part2.push(P[mod(c + k, n)]);
+    out.parts = cfg.cOther ? [dedupe(part2), part1] : [part1, dedupe(part2)];
+    out.cuts.push([P[c], p]);
+    if (!chordInside(P, P[c], p)) out.warnings.push('ഭാഗവര ഭൂമിക്ക് പുറത്തുകൂടി കടന്നുപോകുന്നു. ഈ മൂല ഇതിന് യോജിച്ചതല്ല.');
+    out.desc = `${lbl(c)} മൂലയിൽ നിന്ന് നേർവരയിൽ ഭാഗിച്ചത്.`;
+  } else {
+    const e1 = mod(cfg.e1, n), e2 = mod(cfg.e2, n);
+    if (e1 === e2) { out.errors.push('രണ്ട് വ്യത്യസ്ത വശങ്ങൾ തിരഞ്ഞെടുക്കുക.'); return out; }
+    const d1 = num(cfg.d1) * f, d2 = num(cfg.d2) * f;
+    const at = (e, d) => {
+      const a = P[e], b = P[mod(e + 1, n)], L = dist(a, b);
+      if (!(d >= 0) || d > L + 1e-9) return null;
+      return { x: a.x + (b.x - a.x) * d / L, y: a.y + (b.y - a.y) * d / L };
+    };
+    const p1 = at(e1, d1), p2 = at(e2, d2);
+    if (!p1 || !p2) { out.errors.push('ഓരോ വശത്തിലും ആ വശത്തിന്റെ നീളത്തിനുള്ളിലുള്ള ദൂരം നൽകുക.'); return out; }
+    const poly1 = [p1]; for (let k = mod(e1 + 1, n); ; k = mod(k + 1, n)) { poly1.push(P[k]); if (k === e2) break; } poly1.push(p2);
+    const poly2 = [p2]; for (let k = mod(e2 + 1, n); ; k = mod(k + 1, n)) { poly2.push(P[k]); if (k === e1) break; } poly2.push(p1);
+    out.parts = [dedupe(poly1), dedupe(poly2)];
+    out.cuts.push([p1, p2]);
+    if (!chordInside(P, p1, p2)) out.warnings.push('ഈ ഭാഗവര ഭൂമിക്ക് പുറത്തുകൂടി കടന്നുപോകുന്നു / അതിരിനെ മുറിക്കുന്നു. പോയിന്റുകൾ പരിശോധിക്കുക.');
+    out.desc = 'നൽകിയ രണ്ട് പോയിന്റുകൾ ചേർത്ത് ഭാഗിച്ചത്.';
+  }
+
+  // Names: original corners keep letters, new boundary points become X1, X2...
+  const marks = [];
+  const scale = Math.sqrt(total) || 1;
+  const nameOf = (p) => {
+    for (let i = 0; i < n; i++) if (dist(p, P[i]) < 1e-6 * scale + 1e-6) return lbl(i);
+    for (const m of marks) if (dist(p, m.p) < 1e-6 * scale + 1e-6) return m.name;
+    return null;
+  };
+  out.cuts.forEach(cut => cut.forEach(p => { if (!nameOf(p)) marks.push({ p, name: `X${marks.length + 1}` }); }));
+  out.marks = marks;
+  out.parts = out.parts.filter(pp => pp.length >= 3).map(pts => ({ pts, names: pts.map(p => nameOf(p) || '•'), area: polyArea(pts) }));
+  return out;
+}
+
+// ---------------------------------------------------------------- addition
+function doAddition() {
+  const list = savedList().filter(p => p.id !== S.id);
+  const other = list.find(p => p.id === S.add.plotId);
+  if (!other) return { need: true };
+  const ro = compute(other);
+  if (!ro.ok) return { errors: ['തിരഞ്ഞെടുത്ത പ്ലോട്ടിന്റെ അളവുകൾ പൂർണ്ണമല്ല. ആ പ്ലോട്ട് തുറന്ന് അളവുകൾ പൂർത്തിയാക്കി സേവ് ചെയ്യുക.'] };
+  const P = R.P, Q = ro.P, n = P.length, m = Q.length;
+  const i = mod(S.add.myEdge, n), j = mod(S.add.otherEdge, m);
+  const Pa = P[i], Pb = P[mod(i + 1, n)], Qa = Q[j], Qb = Q[mod(j + 1, m)];
+  const lp = dist(Pa, Pb), lq = dist(Qa, Qb);
+  const place = (ta, tb) => {
+    const r = Math.atan2(tb.y - ta.y, tb.x - ta.x) - Math.atan2(Qb.y - Qa.y, Qb.x - Qa.x), c = Math.cos(r), s = Math.sin(r);
+    const mq = { x: (Qa.x + Qb.x) / 2, y: (Qa.y + Qb.y) / 2 }, mt = { x: (ta.x + tb.x) / 2, y: (ta.y + tb.y) / 2 };
+    return Q.map(q => ({ x: mt.x + (q.x - mq.x) * c - (q.y - mq.y) * s, y: mt.y + (q.x - mq.x) * s + (q.y - mq.y) * c }));
+  };
+  const side = p => (Pb.x - Pa.x) * (p.y - Pa.y) - (Pb.y - Pa.y) * (p.x - Pa.x);
+  const cP = side(centroidOf(P));
+  const o1 = place(Pb, Pa), o2 = place(Pa, Pb);
+  const use1 = Math.sign(side(centroidOf(o1))) !== Math.sign(cP);
+  const Q2 = use1 ? o1 : o2;
+  const res = { warnings: [], errors: [], other, ro, P, Q2, i, j };
+  if (use1) { Q2[j] = { ...Pb }; Q2[mod(j + 1, m)] = { ...Pa }; } else { Q2[j] = { ...Pa }; Q2[mod(j + 1, m)] = { ...Pb }; }
+  let U = [];
+  for (let k = 1; k <= n; k++) U.push({ ...P[mod(i + k, n)], src: `1-${lbl(mod(i + k, n))}` });
+  if (use1) for (let k = 2; k <= m - 1; k++) U.push({ ...Q2[mod(j + k, m)], src: `2-${lbl(mod(j + k, m))}` });
+  else for (let k = 1; k <= m - 2; k++) U.push({ ...Q2[mod(j - k, m)], src: `2-${lbl(mod(j - k, m))}` });
+  // drop corners that became straight-line points on the new boundary
+  let changed = true;
+  while (changed && U.length > 3) {
+    changed = false;
+    for (let k = 0; k < U.length; k++) {
+      const a = U[mod(k - 1, U.length)], b = U[k], c = U[mod(k + 1, U.length)];
+      const cr = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+      if (Math.abs(cr) < 1e-4 * dist(a, b) * dist(b, c) && (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) > 0) { U.splice(k, 1); changed = true; break; }
+    }
+  }
+  res.U = U;
+  res.a1 = R.area; res.a2 = ro.area; res.aU = polyArea(U);
+  const fo = LEN[other.unit] || 1, f = LEN[S.unit] || 1;
+  if (Math.abs(lp - lq) > 0.02 * Math.max(lp, lq)) res.warnings.push(`പൊതു അതിരിന്റെ നീളം രണ്ട് പ്ലോട്ടിലും വ്യത്യസ്തമാണ്: ഈ പ്ലോട്ടിൽ ${fmt(lp / f)} ${LEN_NAME[S.unit]}, മറ്റേതിൽ ${fmt(lq / fo)} ${LEN_NAME[other.unit]}. അളവുകൾ പരിശോധിക്കുക.`);
+  if (Q2.some((q, k) => k !== j && k !== mod(j + 1, m) && pointInPoly(q, P)) || P.some((p, k) => k !== i && k !== mod(i + 1, n) && pointInPoly(p, Q2)))
+    res.warnings.push('രണ്ട് പ്ലോട്ടുകളും ഒന്നിനുമേൽ ഒന്ന് കയറുന്നു. പൊതു വശം ശരിയാണോ, രണ്ടിലും "നടന്ന ദിശ" ശരിയാണോ എന്ന് പരിശോധിക്കുക.');
+  if (Math.abs(res.aU - (res.a1 + res.a2)) > 0.01 * (res.a1 + res.a2)) res.warnings.push('ചേർത്ത ആകൃതിയുടെ വിസ്തീർണ്ണം രണ്ട് പ്ലോട്ടുകളുടെയും തുകയുമായി ചേരുന്നില്ല - പൊതു വശം പരിശോധിക്കുക.');
+  if (U.length > 26) res.errors.push('ചേർത്ത ഭൂമിക്ക് 26-ൽ കൂടുതൽ മൂലകൾ - ആപ്പിൽ ഇത് പിന്തുണയ്ക്കുന്നില്ല.');
+  return res;
+}
+
+// ---------------------------------------------------------------- deduction
+function dedArea(dd) {
+  const f = LEN[S.unit] || 1;
+  if (dd.type === 'area') return num(dd.area) * (SQM_PER[dd.aunit] || 1);
+  if (dd.type === 'plot') { const p = savedList().find(x => x.id === dd.plotId); if (!p) return NaN; const r = compute(p); return r.ok ? r.area : NaN; }
+  const L = num(dd.len) * f, a = num(dd.w1) * f, b = num(dd.w2) > 0 ? num(dd.w2) * f : a;
+  return L > 0 && a > 0 ? L * (a + b) / 2 : NaN;
+}
+function totalDeduction() {
+  return (S.deductions || []).reduce((s, dd) => { const a = dedArea(dd); return s + (a > 0 ? a : 0); }, 0);
+}
+
+// ---------------------------------------------------------------- shared output
+function multiSketch(polys, cuts, marks, opt) {
+  opt = opt || {};
+  const W = 1000, H = opt.H || 800, pad = 95, font = 'font-family="Noto Sans Malayalam, Manjari, Nirmala UI, sans-serif"';
+  const rot = rotator();
+  const T0 = p => rot.f(p);
+  const all = [];
+  polys.forEach(pl => pl.pts.forEach(p => all.push(T0(p))));
+  const xs = all.map(p => p.x), ys = all.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const bw = Math.max(maxX - minX, 1e-6), bh = Math.max(maxY - minY, 1e-6);
+  const top = pad + (opt.title ? 40 : 0), bot = pad + 30;
+  const sc = Math.min((W - 2 * pad) / bw, (H - top - bot) / bh);
+  const ox = (W - bw * sc) / 2, oy = top + (H - top - bot - bh * sc) / 2;
+  const T = p => { const q = T0(p); return { x: ox + (q.x - minX) * sc, y: oy + (maxY - q.y) * sc }; };
+  let h = `<rect width="${W}" height="${H}" fill="#fff"/>`;
+  if (opt.title) h += `<text x="${W / 2}" y="48" text-anchor="middle" font-size="32" font-weight="700" fill="#022c22" ${font}>${esc(opt.title)}</text>`;
+  polys.forEach((pl, k) => {
+    const Q = pl.pts.map(T);
+    h += `<polygon points="${Q.map(p => `${p.x},${p.y}`).join(' ')}" fill="${pl.fill || PART_COLORS[k % PART_COLORS.length]}" stroke="${pl.stroke || '#022c22'}" stroke-width="${pl.sw || 3}" stroke-linejoin="round"/>`;
+  });
+  (cuts || []).forEach(c => {
+    const a = T(c[0]), b = T(c[1]);
+    h += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="${c.color || '#dc2626'}" stroke-width="4" ${c.dash ? 'stroke-dasharray="12 8"' : ''}/>`;
+    if (c.len) h += `<text x="${(a.x + b.x) / 2}" y="${(a.y + b.y) / 2 - 10}" text-anchor="middle" font-size="30" font-weight="700" fill="#b91c1c" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${esc(c.len)}</text>`;
+  });
+  polys.forEach(pl => {
+    if (!pl.label) return;
+    const c = T(centroidOf(pl.pts));
+    pl.label.split('\n').forEach((line, li) => {
+      h += `<text x="${c.x}" y="${c.y + li * 40}" text-anchor="middle" font-size="${li ? 30 : 38}" font-weight="800" fill="#0f172a" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${esc(line)}</text>`;
+    });
+  });
+  (opt.corners || []).forEach(cn => {
+    const p = T(cn.p);
+    const ctr = T(centroidOf(opt.outline || polys[0].pts));
+    let dx = p.x - ctr.x, dy = p.y - ctr.y; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    h += `<circle cx="${p.x}" cy="${p.y}" r="7" fill="#047857" stroke="#fff" stroke-width="3"/>`;
+    h += `<text x="${p.x + dx * 40}" y="${p.y + dy * 40 + 12}" text-anchor="middle" font-size="34" font-weight="800" fill="#047857" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${esc(cn.name)}</text>`;
+  });
+  (marks || []).forEach(mk => {
+    const p = T(mk.p);
+    h += `<circle cx="${p.x}" cy="${p.y}" r="10" fill="#dc2626" stroke="#fff" stroke-width="3"/>`;
+    h += `<text x="${p.x + 14}" y="${p.y - 14}" font-size="32" font-weight="800" fill="#b91c1c" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${esc(mk.name)}</text>`;
+  });
+  const f = LEN[S.unit] || 1, realW = (W - 2 * pad) / sc / f, step = niceStep(realW / 4), px = step * f * sc;
+  h += `<line x1="30" y1="${H - 34}" x2="${30 + px}" y2="${H - 34}" stroke="#0f172a" stroke-width="4"/><text x="${30 + px / 2}" y="${H - 46}" text-anchor="middle" font-size="24" ${font}>${fmt(step, step < 1 ? 2 : 0)} ${LEN_NAME[S.unit]}</text>`;
+  if (rot.north) h += `<polygon points="${W - 50},${top - 60} ${W - 64},${top - 16} ${W - 50},${top - 26} ${W - 36},${top - 16}" fill="#0f172a"/><text x="${W - 50}" y="${top + 12}" text-anchor="middle" font-size="22" font-weight="800">N</text>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${h}</svg>`;
+}
+function sidesTable(pts, names) {
+  const f = LEN[S.unit] || 1, u = LEN_NAME[S.unit];
+  return `<table class="t"><tr><th>വശം</th><th>നീളം (${u})</th></tr>${pts.map((p, i) => `<tr><td>${esc(names[i])}–${esc(names[mod(i + 1, pts.length)])}</td><td class="n">${fmt(dist(p, pts[mod(i + 1, pts.length)]) / f)}</td></tr>`).join('')}</table>`;
+}
+// Saves a polygon (metres) as a new plot with sides + diagonals so it can be opened, printed, divided again
+function buildPlotFromPoly(L0, name, note) {
+  const L = dedupe(L0.map(p => ({ x: p.x, y: p.y })));
+  if (L.length < 3 || L.length > 26) { toast('ഈ ആകൃതി പ്ലോട്ടായി സേവ് ചെയ്യാൻ കഴിയില്ല'); return null; }
+  const f = LEN[S.unit] || 1, n = L.length, st = blankState();
+  st.id = 'p' + Date.now() + Math.floor(Math.random() * 1000);
+  st.n = n; st.unit = S.unit;
+  st.dir = signedArea(L) > 0 ? 'ccw' : 'cw';
+  st.base = bestBase(L);
+  st.sides = L.map((p, i) => (dist(p, L[mod(i + 1, n)]) / f).toFixed(3));
+  diagTargets(n, st.base).forEach(v => { st.diags[v] = (dist(L[st.base], L[v]) / f).toFixed(3); });
+  st.flips = flipsFromShape(L, st.base, st.dir);
+  st.shape = normShape(L);
+  st.d = Object.assign({}, S.d, { name, notes: note });
+  if (isFinite(num(S.bearing)) && R && R.ok) {
+    const th0 = Math.atan2(R.P[1].y - R.P[0].y, R.P[1].x - R.P[0].x), th1 = Math.atan2(L[1].y - L[0].y, L[1].x - L[0].x);
+    st.bearing = String(Math.round(mod(num(S.bearing) + (th0 - th1) * 180 / Math.PI, 360)));
+  }
+  st.savedAt = new Date().toISOString();
+  st.areaSqm = polyArea(L);
+  const list = savedList(); list.unshift(st);
+  if (!storeSet(STORE_LIST, list.slice(0, 100))) { toast('സേവ് ചെയ്യാനായില്ല'); return null; }
+  toast(`"${name}" പുതിയ പ്ലോട്ടായി സേവ് ചെയ്തു ("കൂടുതൽ" പേജിൽ കാണാം)`);
+  return st;
+}
+async function sketchPng(svg, name) {
+  try { downloadBlob(await svgToPngBlob(svg), `${fileBase()}_${name}.png`); toast('ചിത്രം ഡൗൺലോഡ് ചെയ്തു'); }
+  catch (e) { toast('ചിത്രം ഉണ്ടാക്കാൻ സാധിച്ചില്ല'); }
+}
+
+// ---------------------------------------------------------------- UI
+function setPtMode(m) { PT.mode = m; renderPartTab(); }
+function pset(k, v, full) { S.part[k] = v; persist(); if (full) renderPartTab(); else renderPartOut(); }
+function aset(k, v, full) { S.add[k] = v; persist(); if (full) renderPartTab(); else renderAddOut(); }
+function edgeOpts(n, sides, sel) {
+  return Array.from({ length: n }, (_, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${lbl(i)}${lbl(mod(i + 1, n))}${num(sides[i]) > 0 ? ` (${fmt(num(sides[i]))})` : ''}</option>`).join('');
+}
+function areaUnitOpts(sel) { return ['cent', 'sqm', 'are', 'ha', 'acre', 'sqft'].map(u => `<option value="${u}" ${u === sel ? 'selected' : ''}>${AREA_NAME[u]}</option>`).join(''); }
+
+function renderPartTab() {
+  document.querySelectorAll('#ptSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === PT.mode));
+  const body = document.getElementById('ptBody');
+  const notReady = !R || !R.ok;
+  if (PT.mode !== 'ded' && notReady) {
+    body.innerHTML = `<div class="card"><div class="msg info">ആദ്യം "അളവ്" പേജിൽ ഈ ഭൂമിയുടെ എല്ലാ അളവുകളും നൽകുക. അതിനു ശേഷം ഇവിടെ ഭാഗിക്കാനും കൂട്ടിച്ചേർക്കാനും കഴിയും.</div></div>`;
+    return;
+  }
+  if (PT.mode === 'part') body.innerHTML = partCtlHtml() + '<div id="ptOut"></div>';
+  else if (PT.mode === 'add') body.innerHTML = addCtlHtml() + '<div id="ptOut"></div>';
+  else body.innerHTML = dedCtlHtml() + '<div id="ptOut"></div>';
+  if (PT.mode === 'part') renderPartOut(); else if (PT.mode === 'add') renderAddOut(); else renderDedOut();
+}
+
+function partCtlHtml() {
+  const c = S.part, n = S.n, u = LEN_NAME[S.unit];
+  let h = `<div class="card"><h2>ഭൂമി ഭാഗിക്കൽ (Sub-division)</h2>
+    <label class="f">ഭാഗിക്കുന്ന രീതി</label>
+    <select onchange="pset('method', this.value, true)">
+      <option value="area_par" ${c.method === 'area_par' ? 'selected' : ''}>നിശ്ചിത വിസ്തീർണ്ണം - ഒരു വശത്തിന് സമാന്തരമായി</option>
+      <option value="area_corner" ${c.method === 'area_corner' ? 'selected' : ''}>നിശ്ചിത വിസ്തീർണ്ണം - ഒരു മൂലയിൽ നിന്ന്</option>
+      <option value="line" ${c.method === 'line' ? 'selected' : ''}>ഭാഗവര അറിയാം - രണ്ട് പോയിന്റുകൾ</option>
+    </select>`;
+  if (c.method === 'area_par') {
+    h += `<p class="hint" style="margin-top:8px">ഭാഗവരകൾ തിരഞ്ഞെടുത്ത വശത്തിന് സമാന്തരമായിരിക്കും. ഭാഗം 1 ആ വശത്തോട് ചേർന്നായിരിക്കും.</p>
+      <label class="f">ഏത് വശത്തിൽ നിന്ന്</label><select onchange="pset('edge', parseInt(this.value,10))">${edgeOpts(n, S.sides, mod(c.edge, n))}</select>
+      <div class="row c2" style="margin-top:10px">
+        <div><label class="f">തുല്യ ഭാഗങ്ങൾ (എണ്ണം)</label><input type="number" inputmode="numeric" min="2" max="20" value="${esc(c.equalN)}" placeholder="ഉദാ: 3" oninput="pset('equalN', this.value)" /></div>
+        <div><label class="f">യൂണിറ്റ്</label><select onchange="pset('unitA', this.value)">${areaUnitOpts(c.unitA)}</select></div>
+      </div>
+      <label class="f" style="margin-top:10px">അല്ലെങ്കിൽ ഓരോ ഭാഗത്തിന്റെയും വിസ്തീർണ്ണം (കോമ ഇട്ട്)</label>
+      <input type="text" inputmode="decimal" value="${esc(c.shares)}" placeholder="ഉദാ: 5, 7.5 (ബാക്കി അവസാന ഭാഗം)" oninput="pset('shares', this.value)" />
+      <p class="hint" style="margin-top:6px">തുല്യ ഭാഗങ്ങളുടെ എണ്ണം നൽകിയാൽ അതാണ് ഉപയോഗിക്കുക. വിസ്തീർണ്ണങ്ങൾ നൽകിയാൽ ബാക്കി വരുന്നത് അവസാന ഭാഗമാകും.</p>`;
+  } else if (c.method === 'area_corner') {
+    h += `<p class="hint" style="margin-top:8px">തിരഞ്ഞെടുത്ത മൂലയിൽ നിന്ന് ഒരു നേർവര കൊണ്ട് നിശ്ചിത വിസ്തീർണ്ണം മുറിച്ചെടുക്കും.</p>
+      <div class="row c3">
+        <div><label class="f">മൂല</label><select onchange="pset('corner', parseInt(this.value,10))">${Array.from({ length: n }, (_, i) => `<option value="${i}" ${i === mod(c.corner, n) ? 'selected' : ''}>${lbl(i)}</option>`).join('')}</select></div>
+        <div><label class="f">വിസ്തീർണ്ണം</label><input type="number" inputmode="decimal" value="${esc(c.cTarget)}" placeholder="ഉദാ: 5" oninput="pset('cTarget', this.value)" /></div>
+        <div><label class="f">യൂണിറ്റ്</label><select onchange="pset('unitA', this.value)">${areaUnitOpts(c.unitA)}</select></div>
+      </div>
+      <label class="chip" style="margin-top:10px"><input type="checkbox" ${c.cOther ? 'checked' : ''} onchange="pset('cOther', this.checked)" /> ഈ വിസ്തീർണ്ണം മറുവശത്ത് (${lbl(mod(c.corner - 1, n))}${lbl(mod(c.corner, n))} വശത്തോട് ചേർന്ന്) വേണം</label>`;
+  } else {
+    const e1 = mod(c.e1, n), e2 = mod(c.e2, n);
+    h += `<p class="hint" style="margin-top:8px">ഭാഗവരയുടെ രണ്ട് അറ്റങ്ങളും ഏത് വശത്ത്, ആ വശത്തിന്റെ തുടക്ക മൂലയിൽ നിന്ന് എത്ര ദൂരം എന്ന് നൽകുക. മൂലയിൽ തന്നെയാണെങ്കിൽ ദൂരം 0.</p>
+      <div class="row c2">
+        <div><label class="f">പോയിന്റ് 1: വശം</label><select onchange="pset('e1', parseInt(this.value,10), true)">${edgeOpts(n, S.sides, e1)}</select></div>
+        <div><label class="f">${lbl(e1)}-യിൽ നിന്ന് ദൂരം (${u})</label><input type="number" inputmode="decimal" value="${esc(c.d1)}" oninput="pset('d1', this.value)" /></div>
+        <div><label class="f">പോയിന്റ് 2: വശം</label><select onchange="pset('e2', parseInt(this.value,10), true)">${edgeOpts(n, S.sides, e2)}</select></div>
+        <div><label class="f">${lbl(e2)}-യിൽ നിന്ന് ദൂരം (${u})</label><input type="number" inputmode="decimal" value="${esc(c.d2)}" oninput="pset('d2', this.value)" /></div>
+      </div>`;
+  }
+  return h + '</div>';
+}
+
+function renderPartOut() {
+  const box = document.getElementById('ptOut'); if (!box) return;
+  const res = doPartition(); PT.lastPart = res;
+  if (res.errors.length) { box.innerHTML = res.errors.map(e => `<div class="msg err">${esc(e)}</div>`).join(''); return; }
+  const f = LEN[S.unit] || 1, u = LEN_NAME[S.unit];
+  const corners = R.P.map((p, i) => ({ p, name: lbl(i) }));
+  const cuts = res.cuts.map(c => Object.assign([c[0], c[1]], { len: `${fmt(dist(c[0], c[1]) / f)}` }));
+  const svg = multiSketch(res.parts.map((pt, k) => ({ pts: pt.pts, label: `ഭാഗം ${k + 1}\n${fmt(pt.area / SQM_PER.cent)} സെന്റ്` })), cuts, res.marks, { corners, outline: R.P, title: S.d.name ? `${S.d.name} - ഭാഗിക്കൽ` : 'ഭാഗിക്കൽ സ്കെച്ച്' });
+  PT.partSvg = svg;
+  const sum = res.parts.reduce((s, p) => s + p.area, 0);
+  box.innerHTML = `
+    ${res.warnings.map(w => `<div class="msg warn">${esc(w)}</div>`).join('')}
+    <div class="card"><div class="sketchbox">${svg}</div>
+      <p class="hint" style="margin-top:8px">${esc(res.desc)} ചുവന്ന വര = ഭാഗവര (നീളം സഹിതം), ചുവന്ന പോയിന്റ് = പുതിയ അതിരുകല്ല്.</p>
+      <div class="btns"><button type="button" class="btn sm" onclick="sketchPng(PT.partSvg, 'bhagam')">⬇ ചിത്രം (PNG)</button></div></div>
+    ${res.marks.length ? `<div class="card"><h2>📍 അതിരുകല്ലുകൾ ഇടേണ്ട സ്ഥലം</h2><table class="t">${res.marks.map(m => `<tr><th style="width:18%">${esc(m.name)}</th><td>${chainText(R.P, m.p)}</td></tr>`).join('')}</table>
+      ${cuts.map((c, k) => `<p class="hint" style="margin:6px 0 0">ഭാഗവര ${k + 1}: ${fmt(dist(c[0], c[1]) / f)} ${u}</p>`).join('')}</div>` : ''}
+    ${res.parts.map((pt, k) => `<div class="card">
+      <h2><span class="pill" style="background:${PART_COLORS[k % PART_COLORS.length]};color:#0f172a">ഭാഗം ${k + 1}</span> ${fmt(pt.area / SQM_PER.cent)} സെന്റ് <span class="hint">(${fmt(pt.area)} ച.മീ • ${areaParts(pt.area)})</span></h2>
+      ${sidesTable(pt.pts, pt.names)}
+      <div class="btns" style="margin-top:8px"><button type="button" class="btn sm" onclick="savePartPlot(${k})">💾 ഈ ഭാഗം പുതിയ പ്ലോട്ടായി സേവ്</button></div></div>`).join('')}
+    <p class="hint" style="text-align:center">ഭാഗങ്ങളുടെ ആകെ: ${fmt(sum / SQM_PER.cent)} സെന്റ് = ഭൂമിയുടെ ആകെ ${fmt(R.area / SQM_PER.cent)} സെന്റ്</p>`;
+}
+function savePartPlot(k) {
+  const res = PT.lastPart; if (!res || !res.parts[k]) return;
+  const pt = res.parts[k];
+  buildPlotFromPoly(pt.pts, `${S.d.name || 'പ്ലോട്ട്'} - ഭാഗം ${k + 1}`, `${S.d.name || 'പ്ലോട്ട്'} ഭാഗിച്ചതിൽ ഭാഗം ${k + 1} (${pt.names.join('-')}). ${res.desc}`);
+}
+
+function addCtlHtml() {
+  const list = savedList().filter(p => p.id !== S.id);
+  let h = `<div class="card"><h2>കൂട്ടിച്ചേർക്കൽ (Addition)</h2>
+    <p class="hint">ഈ ഭൂമിയോട് ചേർന്നുകിടക്കുന്ന മറ്റൊരു ഭൂമി വെവ്വേറെ അളന്ന് സേവ് ചെയ്തിട്ടുണ്ടെങ്കിൽ, പൊതു അതിര് ഏതെന്ന് പറഞ്ഞാൽ രണ്ടും ചേർത്ത് ഒറ്റ ഭൂമിയാക്കാം.</p>`;
+  if (!list.length) return h + `<div class="msg info">ചേർക്കാനുള്ള രണ്ടാമത്തെ ഭൂമി ഇതുവരെ സേവ് ചെയ്തിട്ടില്ല. ഇപ്പോഴത്തെ പ്ലോട്ട് സേവ് ചെയ്ത ശേഷം, "കൂടുതൽ" → "പുതിയ പ്ലോട്ട്" എടുത്ത് അടുത്ത ഭൂമി അളന്ന് സേവ് ചെയ്യുക. പിന്നീട് ഈ പ്ലോട്ട് വീണ്ടും തുറന്ന് ഇവിടെ വരിക.</div></div>`;
+  const other = list.find(p => p.id === S.add.plotId);
+  h += `<label class="f">ചേർക്കേണ്ട ഭൂമി</label><select onchange="aset('plotId', this.value, true)"><option value="">-- തിരഞ്ഞെടുക്കുക --</option>${list.map(p => `<option value="${esc(p.id)}" ${p.id === S.add.plotId ? 'selected' : ''}>${esc((p.d && p.d.name) || 'പേരില്ലാത്ത പ്ലോട്ട്')}${p.areaSqm ? ` (${fmt(p.areaSqm / SQM_PER.cent)} സെന്റ്)` : ''}</option>`).join('')}</select>`;
+  if (other) {
+    h += `<div class="row c2" style="margin-top:10px">
+      <div><label class="f">ഈ ഭൂമിയിലെ പൊതു വശം</label><select onchange="aset('myEdge', parseInt(this.value,10))">${edgeOpts(S.n, S.sides, mod(S.add.myEdge, S.n))}</select></div>
+      <div><label class="f">ചേർക്കുന്ന ഭൂമിയിലെ അതേ വശം</label><select onchange="aset('otherEdge', parseInt(this.value,10))">${edgeOpts(other.n, other.sides || [], mod(S.add.otherEdge, other.n))}</select></div>
+    </div>`;
+  }
+  return h + '</div>';
+}
+function renderAddOut() {
+  const box = document.getElementById('ptOut'); if (!box) return;
+  const res = doAddition(); PT.lastAdd = res;
+  if (res.need) { box.innerHTML = ''; return; }
+  if (res.errors && res.errors.length && !res.U) { box.innerHTML = res.errors.map(e => `<div class="msg err">${esc(e)}</div>`).join(''); return; }
+  const n = R.P.length, m = res.Q2.length;
+  const common = Object.assign([R.P[res.i], R.P[mod(res.i + 1, n)]], { dash: true, color: '#64748b' });
+  const names = res.U.map((_, k) => lbl(k));
+  const svg = multiSketch([
+    { pts: R.P, label: `1: ${S.d.name || 'ഈ ഭൂമി'}\n${fmt(res.a1 / SQM_PER.cent)} സെന്റ്`, fill: PART_COLORS[0] },
+    { pts: res.Q2, label: `2: ${(res.other.d && res.other.d.name) || 'ചേർത്തത്'}\n${fmt(res.a2 / SQM_PER.cent)} സെന്റ്`, fill: PART_COLORS[1] },
+    { pts: res.U, fill: 'none', stroke: '#022c22', sw: 6 }
+  ], [common], [], { corners: res.U.map((p, k) => ({ p, name: names[k] })), outline: res.U, title: 'കൂട്ടിച്ചേർത്ത ഭൂമി' });
+  PT.addSvg = svg;
+  box.innerHTML = `
+    ${(res.errors || []).map(e => `<div class="msg err">${esc(e)}</div>`).join('')}
+    ${res.warnings.map(w => `<div class="msg warn">${esc(w)}</div>`).join('')}
+    <div class="card"><div class="sketchbox">${svg}</div>
+      <p class="hint" style="margin-top:8px">ചാരനിറ കുത്തുവര = ഒഴിവാകുന്ന പൊതു അതിര്. കട്ടിയുള്ള വര = പുതിയ പുറം അതിര് (A, B, C... പുതിയ പേരുകൾ).</p>
+      <div class="btns"><button type="button" class="btn sm" onclick="sketchPng(PT.addSvg, 'kootticherthu')">⬇ ചിത്രം (PNG)</button></div></div>
+    <div class="card">
+      <div class="bigsub">ആകെ വിസ്തീർണ്ണം</div>
+      <div class="big">${fmt(res.aU / SQM_PER.cent)} സെന്റ്</div>
+      <div class="bigsub">${fmt(res.a1 / SQM_PER.cent)} + ${fmt(res.a2 / SQM_PER.cent)} സെന്റ് • ${fmt(res.aU)} ച.മീ • ${areaParts(res.aU)}</div>
+    </div>
+    <div class="card"><h2>പുതിയ പുറം അതിരുകൾ</h2>
+      <table class="t"><tr><th>വശം</th><th>നീളം (${LEN_NAME[S.unit]})</th><th>പഴയ മൂലകൾ</th></tr>${res.U.map((p, k) => `<tr><td>${names[k]}${names[mod(k + 1, res.U.length)]}</td><td class="n">${fmt(dist(p, res.U[mod(k + 1, res.U.length)]) / (LEN[S.unit] || 1))}</td><td class="hint">${esc(p.src)} → ${esc(res.U[mod(k + 1, res.U.length)].src)}</td></tr>`).join('')}</table>
+      <p class="hint" style="margin-top:6px">"1-B" = ഈ ഭൂമിയിലെ B മൂല; "2-C" = ചേർത്ത ഭൂമിയിലെ C മൂല.</p>
+      ${res.errors && res.errors.length ? '' : `<div class="btns" style="margin-top:8px"><button type="button" class="btn pri sm" onclick="saveAddPlot()">💾 ചേർത്ത ഭൂമി പുതിയ പ്ലോട്ടായി സേവ്</button></div>`}</div>`;
+}
+function saveAddPlot() {
+  const res = PT.lastAdd; if (!res || !res.U) return;
+  buildPlotFromPoly(res.U, `${S.d.name || 'പ്ലോട്ട് 1'} + ${(res.other.d && res.other.d.name) || 'പ്ലോട്ട് 2'}`, `${S.d.name || 'പ്ലോട്ട് 1'}, ${(res.other.d && res.other.d.name) || 'പ്ലോട്ട് 2'} എന്നിവ കൂട്ടിച്ചേർത്തത്.`);
+}
+
+function dedCtlHtml() {
+  const u = LEN_NAME[S.unit], list = savedList().filter(p => p.id !== S.id);
+  const rows = (S.deductions || []).map((dd, k) => {
+    let fields = '';
+    if (dd.type === 'area') fields = `<div class="row c2"><div><label class="f">വിസ്തീർണ്ണം</label><input type="number" inputmode="decimal" value="${esc(dd.area)}" oninput="dset(${k},'area',this.value)" /></div><div><label class="f">യൂണിറ്റ്</label><select onchange="dset(${k},'aunit',this.value)">${areaUnitOpts(dd.aunit || 'cent')}</select></div></div>`;
+    else if (dd.type === 'plot') fields = list.length ? `<label class="f">അളന്ന് സേവ് ചെയ്ത ഭാഗം</label><select onchange="dset(${k},'plotId',this.value)"><option value="">-- തിരഞ്ഞെടുക്കുക --</option>${list.map(p => `<option value="${esc(p.id)}" ${p.id === dd.plotId ? 'selected' : ''}>${esc((p.d && p.d.name) || 'പേരില്ലാത്ത പ്ലോട്ട്')}</option>`).join('')}</select>` : '<div class="msg info">ഒഴിവാക്കേണ്ട ഭാഗം പ്രത്യേക പ്ലോട്ടായി അളന്ന് സേവ് ചെയ്താൽ ഇവിടെ തിരഞ്ഞെടുക്കാം.</div>';
+    else fields = `<div class="row c3"><div><label class="f">നീളം (${u})</label><input type="number" inputmode="decimal" value="${esc(dd.len)}" oninput="dset(${k},'len',this.value)" /></div><div><label class="f">വീതി (${u})</label><input type="number" inputmode="decimal" value="${esc(dd.w1)}" oninput="dset(${k},'w1',this.value)" /></div><div><label class="f">മറ്റേ അറ്റത്തെ വീതി</label><input type="number" inputmode="decimal" value="${esc(dd.w2)}" placeholder="ഒരേ വീതി" oninput="dset(${k},'w2',this.value)" /></div></div>`;
+    return `<div class="card">
+      <div class="row c2"><div><label class="f">പേര്</label><input type="text" value="${esc(dd.name)}" placeholder="ഉദാ: പഞ്ചായത്ത് റോഡ്" oninput="dset(${k},'name',this.value)" /></div>
+      <div><label class="f">രീതി</label><select onchange="dset(${k},'type',this.value,true)">
+        <option value="strip" ${dd.type === 'strip' ? 'selected' : ''}>നീളം × വീതി (റോഡ് / തോട്)</option>
+        <option value="area" ${dd.type === 'area' ? 'selected' : ''}>വിസ്തീർണ്ണം നേരിട്ട്</option>
+        <option value="plot" ${dd.type === 'plot' ? 'selected' : ''}>അളന്ന് സേവ് ചെയ്ത ഭാഗം</option></select></div></div>
+      <div style="margin-top:10px">${fields}</div>
+      <div class="btns" style="margin-top:10px;justify-content:space-between;align-items:center"><span class="pill" id="dedA-${k}"></span><button type="button" class="btn sm warn" onclick="dremove(${k})">✕ ഒഴിവാക്കുക</button></div></div>`;
+  }).join('');
+  return `<div class="card"><h2>ഒഴിവാക്കൽ (Deduction)</h2>
+    <p class="hint">ഭൂമിക്കുള്ളിലൂടെ പോകുന്ന റോഡ്, തോട്, പൊതുവഴി, സർക്കാർ ഭൂമി തുടങ്ങിയവ ആകെ വിസ്തീർണ്ണത്തിൽ നിന്ന് കുറയ്ക്കാൻ. റോഡ് പോലെ നീണ്ട ഭാഗത്തിന് നീളവും വീതിയും നൽകിയാൽ മതി. രണ്ട് അറ്റത്തും വീതി വ്യത്യാസമുണ്ടെങ്കിൽ രണ്ടും നൽകുക.</p>
+    <button type="button" class="btn pri sm" onclick="dadd()">＋ ഒഴിവാക്കേണ്ട ഭാഗം ചേർക്കുക</button></div>${rows}`;
+}
+function renderDedOut() {
+  (S.deductions || []).forEach((dd, k) => {
+    const el = document.getElementById(`dedA-${k}`); if (!el) return;
+    const a = dedArea(dd);
+    el.textContent = a > 0 ? `${fmt(a / SQM_PER.cent)} സെന്റ് (${fmt(a)} ച.മീ)` : 'അളവ് നൽകുക';
+  });
+  const box = document.getElementById('ptOut'); if (!box) return;
+  const ded = totalDeduction();
+  if (!(ded > 0)) { box.innerHTML = ''; return; }
+  if (!R || !R.ok) { box.innerHTML = `<div class="msg info">ഒഴിവാക്കൽ ആകെ: ${fmt(ded / SQM_PER.cent)} സെന്റ്. ഭൂമിയുടെ അളവുകൾ പൂർത്തിയായാൽ ബാക്കി വിസ്തീർണ്ണം ഇവിടെ കാണാം.</div>`; return; }
+  const net = R.area - ded;
+  box.innerHTML = `<div class="card">
+    <table class="t"><tr><th>ആകെ വിസ്തീർണ്ണം</th><td class="n">${fmt(R.area / SQM_PER.cent)} സെന്റ് (${fmt(R.area)} ച.മീ)</td></tr>
+    <tr><th>ഒഴിവാക്കൽ</th><td class="n">− ${fmt(ded / SQM_PER.cent)} സെന്റ് (${fmt(ded)} ച.മീ)</td></tr>
+    <tr><th>ബാക്കി (Net)</th><td class="n"><b>${fmt(net / SQM_PER.cent)} സെന്റ് (${fmt(net)} ച.മീ)</b></td></tr></table>
+    <p class="hint" style="margin-top:6px">${areaParts(Math.max(0, net))}</p>
+    ${net < 0 ? '<div class="msg err">ഒഴിവാക്കൽ ആകെ വിസ്തീർണ്ണത്തേക്കാൾ കൂടുതലാണ് - അളവുകൾ പരിശോധിക്കുക.</div>' : ''}</div>`;
+}
+function dadd() { S.deductions = S.deductions || []; S.deductions.push({ name: '', type: 'strip', len: '', w1: '', w2: '', area: '', aunit: 'cent', plotId: '' }); persist(); renderPartTab(); }
+function dremove(k) { S.deductions.splice(k, 1); persist(); renderPartTab(); update(); }
+function dset(k, key, v, full) { if (!S.deductions[k]) return; S.deductions[k][key] = v; persist(); if (full) renderPartTab(); else renderDedOut(); update(); }
+
+// ============================================================================
 // Input handlers
 // ============================================================================
 function changeN(d) {
@@ -1110,6 +1637,7 @@ function showTab(t) {
   document.querySelectorAll('.tabbar button').forEach(el => el.classList.toggle('active', el.dataset.tab === t));
   if (t === 'more') renderSaved();
   if (t === 'gps') renderGPS();
+  if (t === 'part') renderPartTab();
   window.scrollTo(0, 0);
 }
 
@@ -1154,13 +1682,14 @@ async function readCompass() {
 function fullSVGString() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">${sketchSVG(R, { W: 1000, H: 1000, pad: 110, title: true })}</svg>`;
 }
-function svgToPngBlob() {
+function svgToPngBlob(svgStr) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    const url = URL.createObjectURL(new Blob([fullSVGString()], { type: 'image/svg+xml;charset=utf-8' }));
+    const url = URL.createObjectURL(new Blob([svgStr || fullSVGString()], { type: 'image/svg+xml;charset=utf-8' }));
     img.onload = () => {
-      const c = document.createElement('canvas'); c.width = 2000; c.height = 2000;
-      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 2000, 2000); g.drawImage(img, 0, 0, 2000, 2000);
+      const w = (img.naturalWidth || 1000) * 2, hh = (img.naturalHeight || 1000) * 2;
+      const c = document.createElement('canvas'); c.width = w; c.height = hh;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, w, hh); g.drawImage(img, 0, 0, w, hh);
       URL.revokeObjectURL(url);
       c.toBlob(b => b ? resolve(b) : reject(new Error('png')), 'image/png');
     };
@@ -1199,6 +1728,7 @@ function printReport() {
     <table class="t"><tr><th style="width:30%">ഉടമ / കൈവശക്കാരൻ</th><td>${esc(d.owner)}</td></tr>
       <tr><th>വിസ്തീർണം</th><td><b>${fmt(R.area / SQM_PER.cent)} സെന്റ്</b> = ${fmt(R.area)} ച.മീ = ${areaParts(R.area)} = ${fmt(R.area / SQM_PER.acre, 4)} ഏക്കർ</td></tr>
       <tr><th>ചുറ്റളവ്</th><td>${fmt(R.perimeter / (LEN[S.unit] || 1))} ${u}</td></tr>
+      ${totalDeduction() > 0 ? `<tr><th>ഒഴിവാക്കൽ</th><td>${S.deductions.map(x => { const v = dedArea(x); return v > 0 ? `${esc(x.name || 'ഒഴിവാക്കൽ')}: ${fmt(v / SQM_PER.cent)} സെന്റ്` : ''; }).filter(Boolean).join('; ')}</td></tr><tr><th>ബാക്കി (Net)</th><td><b>${fmt((R.area - totalDeduction()) / SQM_PER.cent)} സെന്റ്</b> = ${fmt(R.area - totalDeduction())} ച.മീ</td></tr>` : ''}
       <tr><th>അതിരുകൾ</th><td>വടക്ക്: ${esc(d.north || '-')}; കിഴക്ക്: ${esc(d.east || '-')}; തെക്ക്: ${esc(d.south || '-')}; പടിഞ്ഞാറ്: ${esc(d.west || '-')}</td></tr></table>
     <div class="sk avoid"><svg viewBox="0 0 1000 1000">${sketchSVG(R, { W: 1000, H: 1000, pad: 110, title: false })}</svg></div>
     <div class="avoid"><table class="t"><tr><th>അളവ്</th><th style="width:30%">നീളം (${u})</th></tr>${sideRows}${diagRows}</table></div>
@@ -1244,6 +1774,9 @@ function loadState(obj) {
   S = Object.assign(b, obj || {});
   S.d = Object.assign(b.d, (obj && obj.d) || {});
   S.check = Object.assign(b.check, (obj && obj.check) || {});
+  S.part = Object.assign(b.part, (obj && obj.part) || {});
+  S.add = Object.assign(b.add, (obj && obj.add) || {});
+  S.deductions = Array.isArray(obj && obj.deductions) ? obj.deductions : [];
   S.sides = Array.isArray(S.sides) ? S.sides : [];
   S.diags = S.diags || {}; S.flips = S.flips || {}; S.gps = Array.isArray(S.gps) ? S.gps : [];
   if (!Array.isArray(S.shape) || S.shape.length !== S.n) S.shape = null;
