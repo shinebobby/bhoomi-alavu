@@ -101,6 +101,25 @@
   .seg button { padding: 10px 4px; border-radius: 11px; border: 1px solid var(--s3); background: var(--s0); font: inherit; font-weight: 700; font-size: 13.5px; color: var(--s7); }
   .seg button.on { background: var(--g7); border-color: var(--g7); color: #fff; }
   .sketchbox > svg { display: block; width: 100%; height: auto; }
+  .cad { position: fixed; inset: 0; z-index: 40; background: #fff; display: flex; flex-direction: column; padding-bottom: env(safe-area-inset-bottom); }
+  .cad[hidden] { display: none; }
+  body.cad-open .toast { bottom: auto; top: calc(56px + env(safe-area-inset-top)); }
+  .cad-top b { white-space: nowrap; }
+  .cad-top { display: flex; align-items: center; gap: 4px; padding: 6px 8px; padding-top: calc(6px + env(safe-area-inset-top)); background: var(--g8); color: #fff; }
+  .cad-top b { font-size: 15px; margin: 0 4px; }
+  .cad-top button { min-width: 38px; height: 36px; border-radius: 9px; border: 1px solid rgba(255,255,255,.3); background: rgba(255,255,255,.12); color: #fff; font: inherit; font-size: 17px; font-weight: 700; }
+  .cad-canvas { flex: 1; position: relative; min-height: 160px; background: #fff; }
+  .cad-canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; -webkit-user-select: none; }
+  .cad-status { font-size: 12px; color: var(--s7); background: var(--s1); padding: 5px 10px; border-top: 1px solid var(--s2); min-height: 26px; }
+  .cad-tools { display: flex; gap: 6px; overflow-x: auto; padding: 6px 8px; border-top: 1px solid var(--s2); background: #fff; scrollbar-width: none; }
+  .cad-tools button { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 62px; padding: 5px 6px; border-radius: 10px; border: 1px solid var(--s3); background: var(--s0); font: inherit; font-size: 11px; font-weight: 700; color: var(--s7); }
+  .cad-tools button span { font-size: 18px; line-height: 1.1; }
+  .cad-tools button.on { background: var(--g7); border-color: var(--g7); color: #fff; }
+  .cad-panel { max-height: 34vh; overflow-y: auto; padding: 8px 10px; border-top: 1px solid var(--s2); background: #fff; }
+  .cad-panel input, .cad-panel select { padding: 8px 9px; font-size: 16px; }
+  .cad-cmd { display: flex; gap: 6px; padding: 6px 8px 8px; border-top: 1px solid var(--s2); background: var(--s0); }
+  .cad-cmd input { font-family: ui-monospace, monospace; padding: 8px 10px; }
+  .cad-cmd button { min-width: 48px; border-radius: 10px; border: 0; background: var(--g7); color: #fff; font-size: 18px; font-weight: 800; }
   .pill { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--g1); color: var(--g8); }
   .list-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--s2); }
   .list-item:last-child { border-bottom: 0; }
@@ -135,8 +154,32 @@
     <h1>ഭൂമി അളവ് &amp; സ്കെച്ച്</h1>
     <small id="hdrName">പുതിയ പ്ലോട്ട്</small>
   </div>
-  <button type="button" onclick="savePlot()">സേവ്</button>
+  <div style="display:flex;gap:6px">
+    <button type="button" onclick="cadOpen()">📐 CAD</button>
+    <button type="button" onclick="savePlot()">സേവ്</button>
+  </div>
 </header>
+
+<div id="cadView" class="cad" hidden>
+  <div class="cad-top">
+    <button type="button" onclick="cadExit()" aria-label="അടയ്ക്കുക">✕</button>
+    <b>CAD</b><span class="pill" id="cadUnitPill" style="white-space:nowrap"></span>
+    <span style="flex:1"></span>
+    <button type="button" onclick="cadUndo()" aria-label="Undo">↶</button>
+    <button type="button" onclick="cadRedo()" aria-label="Redo">↷</button>
+    <button type="button" onclick="cadZoom(1/1.4)" aria-label="ചെറുതാക്കുക">−</button>
+    <button type="button" onclick="cadZoom(1.4)" aria-label="വലുതാക്കുക">＋</button>
+    <button type="button" onclick="cadFit()" aria-label="മുഴുവൻ കാണുക">⤢</button>
+  </div>
+  <div class="cad-canvas"><svg id="cadSvg"></svg></div>
+  <div class="cad-status" id="cadStatus"></div>
+  <div class="cad-tools" id="cadTools"></div>
+  <div class="cad-panel" id="cadPanel"></div>
+  <div class="cad-cmd">
+    <input id="cadCmd" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" placeholder="കമാൻഡ്: 12<90 • @3,4 • 10,5 • c" onkeydown="if(event.key==='Enter'){cadRunCmd()}" />
+    <button type="button" onclick="cadRunCmd()">↵</button>
+  </div>
+</div>
 
 <main>
   <!-- ================= TAB 1: MEASURE ================= -->
@@ -164,6 +207,7 @@
       <div class="sketchbox"><svg id="miniSketch" viewBox="0 0 1000 560"></svg></div>
       <div class="btns" style="margin-top:8px;align-items:center">
         <button type="button" class="btn sm" onclick="padReopen()">✏️ ആകൃതി വരയ്ക്കുക / മാറ്റുക</button>
+        <button type="button" class="btn sm" onclick="cadOpen()">📐 അളവ് നൽകി വരയ്ക്കുക (CAD)</button>
         <span class="hint" style="margin:0">സ്കെച്ചിലെ വശത്തിലോ കോണോടുകോൺ വരയിലോ തൊട്ടാൽ ആ അളവ് നൽകാം.</span>
       </div>
     </div>
@@ -443,6 +487,7 @@ function blankState() {
     part: { method: 'area_par', edge: 0, equalN: '', shares: '', unitA: 'cent', corner: 0, cTarget: '', cOther: false, e1: 0, d1: '', e2: 2, d2: '' },
     add: { plotId: '', myEdge: 0, otherEdge: 0 },
     deductions: [],
+    cad: { ents: [], angleMode: 'cad', labels: true },
     shape: null // drawn outline: normalized math coords [{x,y}] in 0..1, order = A,B,C...
   };
 }
@@ -453,6 +498,7 @@ S.check = Object.assign(blankState().check, S.check || {});
 S.part = Object.assign(blankState().part, S.part || {});
 S.add = Object.assign(blankState().add, S.add || {});
 S.deductions = Array.isArray(S.deductions) ? S.deductions : [];
+S.cad = Object.assign(blankState().cad, S.cad || {}); if (!Array.isArray(S.cad.ents)) S.cad.ents = [];
 let R = null; // last computation
 
 function toast(msg) {
@@ -1597,6 +1643,609 @@ function dremove(k) { S.deductions.splice(k, 1); persist(); renderPartTab(); upd
 function dset(k, key, v, full) { if (!S.deductions[k]) return; S.deductions[k][key] = v; persist(); if (full) renderPartTab(); else renderDedOut(); update(); }
 
 // ============================================================================
+// CAD വര - draw by entering lengths & angles (AutoCAD-like), full-screen mode
+// World units = S.unit (m / ft / link); world y-axis points north.
+// ============================================================================
+const CAD = {
+  open: false, tool: 'line', cur: null, chain: null, sel: null,
+  tmp: {}, view: { s: 10, ox: 0, oy: 0 }, undo: [], redo: [], form: { L: '', A: '' }, lastSnap: null
+};
+const cadEnts = () => S.cad.ents;
+const CAD_TOOLS = [
+  ['select', '👆', 'തിരഞ്ഞെടുക്കുക'], ['line', '📏', 'ലൈൻ'], ['circle', '⭕', 'സർക്കിൾ'], ['arc', '◠', 'ആർക്ക്'],
+  ['rect', '▭', 'ചതുരം'], ['text', '🔤', 'എഴുത്ത്'], ['measure', '📐', 'അളക്കുക'], ['more', '⚙', 'കൂടുതൽ']
+];
+
+function cadU() { return LEN_NAME[S.unit]; }
+function cadW2S(p) { return { x: CAD.view.ox + p.x * CAD.view.s, y: CAD.view.oy - p.y * CAD.view.s }; }
+function cadS2W(p) { return { x: (p.x - CAD.view.ox) / CAD.view.s, y: (CAD.view.oy - p.y) / CAD.view.s }; }
+function cadSize() { const el = document.querySelector('.cad-canvas'); return { W: el.clientWidth || 360, H: el.clientHeight || 400 }; }
+function r3(v) { return Math.round(v * 1000) / 1000; }
+function degOf(a, b) { return Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI; }
+function bearingOf(a, b) { return mod(90 - degOf(a, b), 360); }
+function bearingText(b) {
+  const q = b <= 90 ? ['N', b, 'E'] : b <= 180 ? ['S', 180 - b, 'E'] : b <= 270 ? ['S', b - 180, 'W'] : ['N', 360 - b, 'W'];
+  const d = Math.floor(q[1] + 1e-9), m = Math.round((q[1] - d) * 60);
+  return `${q[0]} ${d}°${String(m).padStart(2, '0')}' ${q[2]}`;
+}
+function cadPushUndo() {
+  CAD.undo.push(JSON.stringify({ ents: cadEnts(), cur: CAD.cur, chain: CAD.chain }));
+  if (CAD.undo.length > 60) CAD.undo.shift();
+  CAD.redo = [];
+}
+function cadRestore(js) { const o = JSON.parse(js); S.cad.ents = o.ents; CAD.cur = o.cur; CAD.chain = o.chain; CAD.sel = null; }
+function cadUndo() { if (!CAD.undo.length) return; CAD.redo.push(JSON.stringify({ ents: cadEnts(), cur: CAD.cur, chain: CAD.chain })); cadRestore(CAD.undo.pop()); cadChanged(); }
+function cadRedo() { if (!CAD.redo.length) return; CAD.undo.push(JSON.stringify({ ents: cadEnts(), cur: CAD.cur, chain: CAD.chain })); cadRestore(CAD.redo.pop()); cadChanged(); }
+function cadChanged() { persist(); cadPanel(); cadRender(); }
+
+// ---- angle parsing: degrees, D°M'S", N45E style bearings ----
+function cadDms(str) {
+  let s = String(str).trim(), sg = 1;
+  if (s.startsWith('-')) { sg = -1; s = s.slice(1); } else if (s.startsWith('+')) s = s.slice(1);
+  const parts = s.replace(/[°'"’”′″dms]/gi, ' ').trim().split(/[\s:]+/).filter(Boolean).map(Number);
+  if (!parts.length || parts.some(x => !isFinite(x))) return NaN;
+  return sg * (parts[0] + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600);
+}
+function cadParseAngle(str) {
+  const s = String(str || '').trim().toUpperCase();
+  if (!s) return null;
+  const m = s.match(/^([NS])\s*([0-9.°'"’”′″\s:]+?)\s*([EW])$/);
+  if (m) {
+    const d = cadDms(m[2]); if (!isFinite(d)) return null;
+    return { bearing: m[1] === 'N' ? (m[3] === 'E' ? d : 360 - d) : (m[3] === 'E' ? 180 - d : 180 + d) };
+  }
+  if (s === 'N') return { bearing: 0 }; if (s === 'E') return { bearing: 90 }; if (s === 'S') return { bearing: 180 }; if (s === 'W') return { bearing: 270 };
+  const d = cadDms(s);
+  return isFinite(d) ? { deg: d } : null;
+}
+function cadPrevDir() {
+  const e = CAD.chain !== null ? cadEnts()[CAD.chain] : null;
+  if (!e || e.pts.length < 2) return null;
+  return degOf(e.pts[e.pts.length - 2], e.pts[e.pts.length - 1]);
+}
+// returns direction in degrees, CCW from east
+function cadTheta(str) {
+  const a = cadParseAngle(str);
+  if (!a) return null;
+  if (a.bearing !== undefined) return 90 - a.bearing;
+  const mode = S.cad.angleMode;
+  if (mode === 'bearing') return 90 - a.deg;
+  if (mode === 'defl') { const p = cadPrevDir(); return p === null ? a.deg : p + a.deg; }
+  return a.deg;
+}
+
+// ---- snapping ----
+function cadSegs() {
+  const segs = [];
+  cadEnts().forEach(e => {
+    if (e.type === 'pline') {
+      for (let i = 0; i + 1 < e.pts.length; i++) segs.push([e.pts[i], e.pts[i + 1]]);
+      if (e.closed && e.pts.length > 2) segs.push([e.pts[e.pts.length - 1], e.pts[0]]);
+    } else if (e.type === 'dim') segs.push([e.a, e.b]);
+  });
+  return segs;
+}
+function cadSnapCandidates() {
+  const c = [];
+  cadEnts().forEach(e => {
+    if (e.type === 'pline') e.pts.forEach(p => c.push({ p, k: 'മൂല' }));
+    else if (e.type === 'circle') { c.push({ p: e.c, k: 'കേന്ദ്രം' }); [0, 90, 180, 270].forEach(a => c.push({ p: { x: e.c.x + e.r * Math.cos(a * Math.PI / 180), y: e.c.y + e.r * Math.sin(a * Math.PI / 180) }, k: 'വൃത്തം' })); }
+    else if (e.type === 'arc') { c.push({ p: e.c, k: 'കേന്ദ്രം' }); [e.a0, e.a1].forEach(a => c.push({ p: { x: e.c.x + e.r * Math.cos(a * Math.PI / 180), y: e.c.y + e.r * Math.sin(a * Math.PI / 180) }, k: 'ആർക്ക് അറ്റം' })); }
+    else if (e.type === 'text') c.push({ p: e.p, k: 'എഴുത്ത്' });
+    else if (e.type === 'dim') { c.push({ p: e.a, k: 'അറ്റം' }); c.push({ p: e.b, k: 'അറ്റം' }); }
+  });
+  const segs = cadSegs();
+  segs.forEach(s => c.push({ p: { x: (s[0].x + s[1].x) / 2, y: (s[0].y + s[1].y) / 2 }, k: 'നടുവ്' }));
+  for (let i = 0; i < segs.length && i < 300; i++) for (let j = i + 1; j < segs.length && j < 300; j++) {
+    const [a, b] = segs[i], [p, q] = segs[j];
+    const d = (b.x - a.x) * (q.y - p.y) - (b.y - a.y) * (q.x - p.x);
+    if (Math.abs(d) < 1e-12) continue;
+    const t = ((p.x - a.x) * (q.y - p.y) - (p.y - a.y) * (q.x - p.x)) / d, u = ((p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)) / d;
+    if (t > 1e-6 && t < 1 - 1e-6 && u > 1e-6 && u < 1 - 1e-6) c.push({ p: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, k: 'കൂട്ടിമുട്ടൽ' });
+  }
+  if (CAD.cur) c.push({ p: CAD.cur, k: 'നിലവിലെ പോയിന്റ്' });
+  return c;
+}
+function cadSnap(sp) {
+  let best = null;
+  cadSnapCandidates().forEach(c => { const q = cadW2S(c.p), d = Math.hypot(q.x - sp.x, q.y - sp.y); if (d < 24 && (!best || d < best.d)) best = { ...c, d }; });
+  return best;
+}
+function cadHit(sp) {
+  const w = cadS2W(sp), tol = 16 / CAD.view.s;
+  let best = null;
+  const segD = (p, a, b) => { const L2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2 || 1e-12; let t = ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / L2; t = Math.max(0, Math.min(1, t)); return Math.hypot(a.x + (b.x - a.x) * t - p.x, a.y + (b.y - a.y) * t - p.y); };
+  cadEnts().forEach((e, i) => {
+    let d = Infinity;
+    if (e.type === 'pline') { for (let k = 0; k + 1 < e.pts.length; k++) d = Math.min(d, segD(w, e.pts[k], e.pts[k + 1])); if (e.closed) d = Math.min(d, segD(w, e.pts[e.pts.length - 1], e.pts[0])); }
+    else if (e.type === 'circle') d = Math.abs(dist(w, e.c) - e.r);
+    else if (e.type === 'arc') d = Math.abs(dist(w, e.c) - e.r);
+    else if (e.type === 'text') d = dist(w, e.p) * 0.6;
+    else if (e.type === 'dim') d = segD(w, e.a, e.b);
+    if (d < tol && (!best || d < best.d)) best = { i, d };
+  });
+  if (!best) cadEnts().forEach((e, i) => { if (!best && e.type === 'pline' && e.closed && pointInPoly(w, e.pts)) best = { i, d: 0 }; });
+  return best ? best.i : null;
+}
+
+// ---- entity helpers ----
+function plineLen(e) { let s = 0; for (let k = 0; k + 1 < e.pts.length; k++) s += dist(e.pts[k], e.pts[k + 1]); if (e.closed) s += dist(e.pts[e.pts.length - 1], e.pts[0]); return s; }
+function cadAreaText(a) { const f = LEN[S.unit] || 1, sqm = a * f * f; return `${fmt(sqm / SQM_PER.cent)} സെന്റ് (${fmt(sqm)} ച.മീ)`; }
+function cadAddSeg(p) {
+  cadPushUndo();
+  const ents = cadEnts();
+  if (CAD.chain === null) { ents.push({ type: 'pline', pts: [{ ...CAD.cur }, p], closed: false }); CAD.chain = ents.length - 1; }
+  else ents[CAD.chain].pts.push(p);
+  const e = ents[CAD.chain];
+  CAD.cur = p;
+  if (e.pts.length > 3 && dist(p, e.pts[0]) < 1e-6) { e.pts.pop(); cadFinishClose(); return; }
+  cadChanged();
+}
+function cadFinishClose() {
+  const e = cadEnts()[CAD.chain];
+  e.closed = true;
+  const idx = CAD.chain;
+  CAD.chain = null; CAD.cur = null;
+  CAD.sel = idx; CAD.tool = 'select';
+  persist();
+  toast(`രൂപം അടച്ചു - വിസ്തീർണ്ണം ${cadAreaText(polyArea(e.pts))}`);
+  cadTools(); cadPanel(); cadRender();
+}
+function cadClose() {
+  const e = CAD.chain !== null ? cadEnts()[CAD.chain] : null;
+  if (!e || e.pts.length < 3) { toast('അടയ്ക്കാൻ കുറഞ്ഞത് 2 വരകൾ വേണം'); return; }
+  cadPushUndo();
+  cadFinishClose();
+}
+function cadEndChain() { CAD.chain = null; CAD.cur = null; cadPanel(); cadRender(); }
+function cadAddFromFields() {
+  const L = num(document.getElementById('cL').value);
+  const A = document.getElementById('cA').value;
+  CAD.form.L = document.getElementById('cL').value; CAD.form.A = A;
+  if (!(L > 0)) { toast('നീളം നൽകുക'); return; }
+  let th = cadTheta(A);
+  if (th === null) { if (String(A).trim()) { toast('കോൺ മനസ്സിലായില്ല (ഉദാ: 90, 45°30\', N45E)'); return; } th = cadPrevDir(); if (th === null) th = 0; }
+  if (!CAD.cur) { if (!cadEnts().length) CAD.cur = { x: 0, y: 0 }; else { toast('ആദ്യം തുടങ്ങേണ്ട പോയിന്റിൽ തൊടുക'); return; } }
+  cadAddSeg({ x: r3(CAD.cur.x + L * Math.cos(th * Math.PI / 180)), y: r3(CAD.cur.y + L * Math.sin(th * Math.PI / 180)) });
+  const li = document.getElementById('cL'); if (li) { li.value = ''; CAD.form.L = ''; li.focus(); }
+  cadAutoPan();
+}
+function cadAutoPan() {
+  if (!CAD.cur) return;
+  const { W, H } = cadSize(), q = cadW2S(CAD.cur);
+  if (q.x < 30 || q.x > W - 30 || q.y < 30 || q.y > H - 30) { CAD.view.ox += W / 2 - q.x; CAD.view.oy += H / 2 - q.y; cadRender(); }
+}
+
+// ---- point input from tap or command ----
+function cadPoint(p, how) {
+  const t = CAD.tool;
+  if (t === 'line') {
+    if (!CAD.cur) { CAD.cur = p; CAD.chain = null; cadPanel(); cadRender(); toast(`തുടക്കം: (${fmt(p.x)}, ${fmt(p.y)}) - ഇനി നീളവും കോണും നൽകുക`); }
+    else cadAddSeg(p);
+  } else if (t === 'circle') {
+    if (!CAD.tmp.c) { CAD.tmp.c = p; cadPanel(); cadRender(); }
+    else { const r = dist(CAD.tmp.c, p); if (r > 0) { cadPushUndo(); cadEnts().push({ type: 'circle', c: CAD.tmp.c, r: r3(r) }); CAD.tmp.c = null; cadChanged(); } }
+  } else if (t === 'arc') { CAD.tmp.c = p; cadPanel(); cadRender(); }
+  else if (t === 'rect') { CAD.tmp.p = p; cadPanel(); cadRender(); }
+  else if (t === 'text') { CAD.tmp.p = p; cadPanel(); cadRender(); setTimeout(() => { const el = document.getElementById('cTxt'); if (el) el.focus(); }, 50); }
+  else if (t === 'measure') {
+    if (!CAD.tmp.m || CAD.tmp.m.length >= 2) CAD.tmp.m = [p]; else CAD.tmp.m.push(p);
+    cadPanel(); cadRender();
+  }
+}
+function cadTap(sp) {
+  if (CAD.tool === 'select' || CAD.tool === 'more') { CAD.sel = cadHit(sp); if (CAD.tool === 'more') CAD.tool = 'select'; cadTools(); cadPanel(); cadRender(); return; }
+  const sn = cadSnap(sp);
+  CAD.lastSnap = sn;
+  const w = sn ? sn.p : cadS2W(sp);
+  cadPoint(sn ? { ...sn.p } : { x: r3(w.x), y: r3(w.y) }, 'tap');
+}
+function cadRunCmd() {
+  const inp = document.getElementById('cadCmd');
+  const s = inp.value.trim(); if (!s) return;
+  const low = s.toLowerCase();
+  inp.value = '';
+  if (['c', 'close', 'അടയ്ക്കുക'].includes(low)) { cadClose(); return; }
+  if (['u', 'undo'].includes(low)) { cadUndo(); return; }
+  if (['l', 'line'].includes(low)) { cadSetTool('line'); return; }
+  if (['ci', 'circle'].includes(low)) { cadSetTool('circle'); return; }
+  if (['z', 'fit'].includes(low)) { cadFit(); return; }
+  let body = s, rel = false;
+  if (body.startsWith('@')) { rel = true; body = body.slice(1); }
+  let p = null;
+  if (body.includes('<')) {
+    const [Ls, As] = body.split('<');
+    const L = num(Ls), th = cadTheta(As);
+    if (!(L > 0) || th === null) { toast('ഉദാ: 10<90 (നീളം<കോൺ)'); return; }
+    const base = CAD.cur || (CAD.tool === 'circle' && CAD.tmp.c) || null;
+    if (!base) { if (CAD.tool === 'line' && !cadEnts().length) CAD.cur = { x: 0, y: 0 }; else { toast('ആദ്യം തുടങ്ങേണ്ട പോയിന്റ് നൽകുക'); return; } }
+    const b = CAD.cur || base;
+    p = { x: r3(b.x + L * Math.cos(th * Math.PI / 180)), y: r3(b.y + L * Math.sin(th * Math.PI / 180)) };
+  } else if (body.includes(',')) {
+    const [xs, ys] = body.split(','), x = num(xs), y = num(ys);
+    if (!isFinite(x) || !isFinite(y)) { toast('ഉദാ: 10,5 അല്ലെങ്കിൽ @10,5'); return; }
+    if (rel) { if (!CAD.cur) { toast('@ ഉപയോഗിക്കാൻ നിലവിലെ പോയിന്റ് വേണം'); return; } p = { x: r3(CAD.cur.x + x), y: r3(CAD.cur.y + y) }; }
+    else p = { x, y };
+  } else {
+    const L = num(body);
+    if (!(L > 0)) { toast('കമാൻഡ് മനസ്സിലായില്ല'); return; }
+    if (CAD.tool === 'circle' && CAD.tmp.c) { cadPushUndo(); cadEnts().push({ type: 'circle', c: CAD.tmp.c, r: L }); CAD.tmp.c = null; cadChanged(); return; }
+    if (CAD.tool !== 'line') { toast('നീളം മാത്രം ലൈൻ ടൂളിൽ ഉപയോഗിക്കാം'); return; }
+    const el = document.getElementById('cL'); if (el) el.value = String(L);
+    cadAddFromFields(); return;
+  }
+  cadPoint(p, 'cmd');
+  cadAutoPan();
+}
+
+// ---- tool-specific add actions ----
+function cadAddCircleR() {
+  const r = num(document.getElementById('cR').value);
+  if (!CAD.tmp.c) { if (CAD.cur) CAD.tmp.c = { ...CAD.cur }; else { toast('ആദ്യം കേന്ദ്രത്തിൽ തൊടുക'); return; } }
+  if (!(r > 0)) { toast('റേഡിയസ് നൽകുക'); return; }
+  cadPushUndo(); cadEnts().push({ type: 'circle', c: CAD.tmp.c, r }); CAD.tmp.c = null; cadChanged();
+}
+function cadAddArc() {
+  const r = num(document.getElementById('cR').value), a0 = cadDms(document.getElementById('cA0').value), a1 = cadDms(document.getElementById('cA1').value);
+  if (!CAD.tmp.c) { if (CAD.cur) CAD.tmp.c = { ...CAD.cur }; else { toast('ആദ്യം കേന്ദ്രത്തിൽ തൊടുക'); return; } }
+  if (!(r > 0) || !isFinite(a0) || !isFinite(a1)) { toast('റേഡിയസ്, തുടക്ക കോൺ, അവസാന കോൺ നൽകുക'); return; }
+  cadPushUndo(); cadEnts().push({ type: 'arc', c: CAD.tmp.c, r, a0, a1 }); CAD.tmp.c = null; cadChanged();
+}
+function cadAddRect() {
+  const w = num(document.getElementById('cRW').value), h = num(document.getElementById('cRH').value), rot = num(document.getElementById('cRA').value) || 0;
+  const p = CAD.tmp.p || CAD.cur || (cadEnts().length ? null : { x: 0, y: 0 });
+  if (!p) { toast('ആദ്യം ഒരു മൂലയിൽ തൊടുക'); return; }
+  if (!(w > 0 && h > 0)) { toast('നീളവും വീതിയും നൽകുക'); return; }
+  const c = Math.cos(rot * Math.PI / 180), s = Math.sin(rot * Math.PI / 180);
+  const R0 = [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => ({ x: r3(p.x + x * c - y * s), y: r3(p.y + x * s + y * c) }));
+  cadPushUndo(); cadEnts().push({ type: 'pline', pts: R0, closed: true });
+  CAD.sel = cadEnts().length - 1; CAD.tmp.p = null; CAD.tool = 'select';
+  toast(`ചതുരം - ${cadAreaText(w * h)}`); cadTools(); cadChanged();
+}
+function cadAddText() {
+  const t = document.getElementById('cTxt').value.trim();
+  if (!CAD.tmp.p) { toast('എഴുത്ത് വരേണ്ട സ്ഥലത്ത് തൊടുക'); return; }
+  if (!t) { toast('എഴുത്ത് നൽകുക'); return; }
+  cadPushUndo(); cadEnts().push({ type: 'text', p: CAD.tmp.p, t }); CAD.tmp.p = null; cadChanged();
+}
+function cadAddDim() {
+  const m = CAD.tmp.m; if (!m || m.length < 2) return;
+  cadPushUndo(); cadEnts().push({ type: 'dim', a: m[0], b: m[1] }); CAD.tmp.m = null; cadChanged();
+}
+function cadDeleteSel() { if (CAD.sel === null) return; cadPushUndo(); cadEnts().splice(CAD.sel, 1); if (CAD.chain !== null) CAD.chain = null; CAD.sel = null; CAD.cur = null; cadChanged(); }
+function cadCloseSel() { const e = cadEnts()[CAD.sel]; if (!e || e.type !== 'pline' || e.pts.length < 3) return; cadPushUndo(); e.closed = true; toast(`വിസ്തീർണ്ണം ${cadAreaText(polyArea(e.pts))}`); cadChanged(); }
+function cadContinueSel() { const e = cadEnts()[CAD.sel]; if (!e || e.type !== 'pline' || e.closed) return; CAD.chain = CAD.sel; CAD.cur = { ...e.pts[e.pts.length - 1] }; CAD.sel = null; cadSetTool('line'); }
+function cadUseAsPlot() {
+  const e = cadEnts()[CAD.sel];
+  if (!e || e.type !== 'pline' || !e.closed) return;
+  const L = dedupe(e.pts.map(p => ({ x: p.x, y: p.y })));
+  if (L.length < 3 || L.length > 26) { toast('3 മുതൽ 26 വരെ മൂലകളുള്ള രൂപം മാത്രം'); return; }
+  if (selfIntersects(L)) { toast('രൂപത്തിന്റെ വരകൾ പരസ്പരം മുറിക്കുന്നു'); return; }
+  const hasData = S.sides.some(v => num(v) > 0);
+  if (hasData && !confirm('ഇപ്പോഴത്തെ അളവുകൾക്ക് പകരം ഈ രൂപത്തിന്റെ അളവുകൾ ചേർക്കണോ?')) return;
+  const n = L.length;
+  S.n = n; S.dir = signedArea(L) > 0 ? 'ccw' : 'cw'; S.base = bestBase(L);
+  S.sides = L.map((p, i) => String(r3(dist(p, L[mod(i + 1, n)]))));
+  S.diags = {}; diagTargets(n, S.base).forEach(v => { S.diags[v] = String(r3(dist(L[S.base], L[v]))); });
+  S.flips = flipsFromShape(L, S.base, S.dir);
+  S.shape = normShape(L);
+  S.bearing = String(Math.round(bearingOf(L[0], L[1]) * 10) / 10);
+  padOpen = false;
+  cadExit();
+  renderAll(); showTab('measure');
+  toast(`CAD രൂപം ഭൂമിയായി ചേർത്തു: ${n} വശങ്ങൾ`);
+}
+function cadImportPlot() {
+  if (!R || !R.ok) { toast('ആദ്യം "അളവ്" പേജിൽ ഭൂമിയുടെ അളവുകൾ പൂർത്തിയാക്കുക'); return; }
+  const f = LEN[S.unit] || 1, rot = rotator();
+  const pts = R.P.map(p => rot.f(p)).map(p => ({ x: r3(p.x / f), y: r3(p.y / f) }));
+  const ox = pts[0].x, oy = pts[0].y;
+  cadPushUndo();
+  cadEnts().push({ type: 'pline', pts: pts.map(p => ({ x: r3(p.x - ox), y: r3(p.y - oy) })), closed: true });
+  pts.forEach((p, i) => cadEnts().push({ type: 'text', p: { x: r3(p.x - ox), y: r3(p.y - oy) }, t: lbl(i) }));
+  CAD.sel = null; cadChanged(); cadFit();
+  toast(rot.north ? 'ഭൂമി ചേർത്തു (വടക്ക് മുകളിൽ)' : 'ഭൂമി ചേർത്തു (A→B കിഴക്കോട്ട്; വടക്ക് ദിശ നൽകിയിട്ടില്ല)');
+}
+function cadClearAll() { if (!cadEnts().length || !confirm('CAD-ലെ എല്ലാ വരകളും മായ്ക്കണോ?')) return; cadPushUndo(); S.cad.ents = []; CAD.cur = null; CAD.chain = null; CAD.sel = null; cadChanged(); }
+
+// ---- rendering ----
+function cadSvgString(W, H, view, forExport) {
+  const T = p => ({ x: view.ox + p.x * view.s, y: view.oy - p.y * view.s });
+  const font = 'font-family="Noto Sans Malayalam, Manjari, Nirmala UI, sans-serif"';
+  let h = `<rect width="${W}" height="${H}" fill="#ffffff"/>`;
+  // grid
+  const step = niceStep(70 / view.s), x0 = Math.floor(-view.ox / view.s / step) * step, y0 = Math.floor((view.oy - H) / view.s / step) * step;
+  for (let x = x0; x <= (W - view.ox) / view.s; x += step) { const sx = view.ox + x * view.s; h += `<line x1="${sx}" y1="0" x2="${sx}" y2="${H}" stroke="${Math.abs(x) < step / 2 ? '#cbd5e1' : '#f1f5f9'}" stroke-width="1"/>`; }
+  for (let y = y0; y <= view.oy / view.s; y += step) { const sy = view.oy - y * view.s; h += `<line x1="0" y1="${sy}" x2="${W}" y2="${sy}" stroke="${Math.abs(y) < step / 2 ? '#cbd5e1' : '#f1f5f9'}" stroke-width="1"/>`; }
+  const lab = (x, y, t, col, size, anchor) => `<text x="${x}" y="${y}" text-anchor="${anchor || 'middle'}" font-size="${size || 13}" font-weight="700" fill="${col || '#0f172a'}" stroke="#fff" stroke-width="4" paint-order="stroke" ${font}>${esc(t)}</text>`;
+  cadEnts().forEach((e, i) => {
+    const sel = !forExport && i === CAD.sel, col = sel ? '#2563eb' : '#0f172a', sw = sel ? 4 : 2.2;
+    if (e.type === 'pline') {
+      const Q = e.pts.map(T);
+      if (e.closed) h += `<polygon points="${Q.map(p => `${p.x},${p.y}`).join(' ')}" fill="${sel ? 'rgba(37,99,235,.08)' : 'rgba(16,185,129,.10)'}" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      else h += `<polyline points="${Q.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="${col}" stroke-width="${sw}" stroke-linejoin="round"/>`;
+      Q.forEach(p => { h += `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${col}"/>`; });
+      if (S.cad.labels) {
+        const n = e.pts.length, segs = e.closed ? n : n - 1;
+        const cen = e.closed ? T(centroidOf(e.pts)) : null;
+        for (let k = 0; k < segs; k++) {
+          const a = Q[k], b = Q[mod(k + 1, n)], len = dist(e.pts[k], e.pts[mod(k + 1, n)]);
+          if (Math.hypot(b.x - a.x, b.y - a.y) < 28) continue;
+          let nx = -(b.y - a.y), ny = b.x - a.x; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+          const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+          if (cen && (mx + nx - cen.x) ** 2 + (my + ny - cen.y) ** 2 < (mx - cen.x) ** 2 + (my - cen.y) ** 2) { nx = -nx; ny = -ny; }
+          h += lab(mx + nx * 13, my + ny * 13 + 4, fmt(len), '#334155', 12.5);
+        }
+        if (e.closed) { const c = T(centroidOf(e.pts)); h += lab(c.x, c.y, cadAreaText(polyArea(e.pts)).split(' (')[0], '#047857', 14); }
+      }
+    } else if (e.type === 'circle') {
+      const c = T(e.c);
+      h += `<circle cx="${c.x}" cy="${c.y}" r="${e.r * view.s}" fill="none" stroke="${col}" stroke-width="${sw}"/><circle cx="${c.x}" cy="${c.y}" r="2.5" fill="${col}"/>`;
+      if (S.cad.labels) h += `<line x1="${c.x}" y1="${c.y}" x2="${c.x + e.r * view.s * 0.7071}" y2="${c.y - e.r * view.s * 0.7071}" stroke="#94a3b8" stroke-dasharray="4 3"/>` + lab(c.x + e.r * view.s * 0.36, c.y - e.r * view.s * 0.36 - 5, `R ${fmt(e.r)}`, '#334155', 12.5);
+    } else if (e.type === 'arc') {
+      const a0 = e.a0 * Math.PI / 180, a1 = e.a1 * Math.PI / 180;
+      const p0 = T({ x: e.c.x + e.r * Math.cos(a0), y: e.c.y + e.r * Math.sin(a0) }), p1 = T({ x: e.c.x + e.r * Math.cos(a1), y: e.c.y + e.r * Math.sin(a1) });
+      const sweep = mod(e.a1 - e.a0, 360), large = sweep > 180 ? 1 : 0, rr = e.r * view.s;
+      h += `<path d="M ${p0.x} ${p0.y} A ${rr} ${rr} 0 ${large} 0 ${p1.x} ${p1.y}" fill="none" stroke="${col}" stroke-width="${sw}"/>`;
+      const c = T(e.c); h += `<circle cx="${c.x}" cy="${c.y}" r="2.5" fill="#94a3b8"/>`;
+      if (S.cad.labels) { const am = (e.a0 + sweep / 2) * Math.PI / 180; const lp = T({ x: e.c.x + e.r * Math.cos(am), y: e.c.y + e.r * Math.sin(am) }); h += lab(lp.x, lp.y - 8, `R ${fmt(e.r)}, ${fmt(e.r * sweep * Math.PI / 180)}`, '#334155', 12.5); }
+    } else if (e.type === 'text') {
+      const p = T(e.p); h += lab(p.x, p.y, e.t, sel ? '#2563eb' : '#7c2d12', 15);
+    } else if (e.type === 'dim') {
+      const a = T(e.a), b = T(e.b);
+      let nx = -(b.y - a.y), ny = b.x - a.x; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+      const o = 16, A = { x: a.x + nx * o, y: a.y + ny * o }, B = { x: b.x + nx * o, y: b.y + ny * o };
+      h += `<line x1="${a.x}" y1="${a.y}" x2="${A.x}" y2="${A.y}" stroke="#dc2626" stroke-width="1"/><line x1="${b.x}" y1="${b.y}" x2="${B.x}" y2="${B.y}" stroke="#dc2626" stroke-width="1"/>`;
+      h += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="#dc2626" stroke-width="${sel ? 3 : 1.5}"/>`;
+      [A, B].forEach(P => { h += `<line x1="${P.x - 5}" y1="${P.y + 5}" x2="${P.x + 5}" y2="${P.y - 5}" stroke="#dc2626" stroke-width="2"/>`; });
+      h += lab((A.x + B.x) / 2 + nx * 10, (A.y + B.y) / 2 + ny * 10 + 4, fmt(dist(e.a, e.b)), '#b91c1c', 13);
+    }
+  });
+  if (!forExport) {
+    if (CAD.cur) { const c = T(CAD.cur); h += `<circle cx="${c.x}" cy="${c.y}" r="9" fill="none" stroke="#dc2626" stroke-width="2.5"/><line x1="${c.x - 14}" y1="${c.y}" x2="${c.x + 14}" y2="${c.y}" stroke="#dc2626" stroke-width="1.5"/><line x1="${c.x}" y1="${c.y - 14}" x2="${c.x}" y2="${c.y + 14}" stroke="#dc2626" stroke-width="1.5"/>`; }
+    [CAD.tmp.c, CAD.tmp.p].forEach(p => { if (p) { const c = T(p); h += `<rect x="${c.x - 7}" y="${c.y - 7}" width="14" height="14" fill="none" stroke="#7c3aed" stroke-width="2.5"/>`; } });
+    if (CAD.tmp.m) {
+      const Q = CAD.tmp.m.map(T);
+      Q.forEach(c => { h += `<circle cx="${c.x}" cy="${c.y}" r="6" fill="#f59e0b" stroke="#fff" stroke-width="2"/>`; });
+      if (Q.length === 2) h += `<line x1="${Q[0].x}" y1="${Q[0].y}" x2="${Q[1].x}" y2="${Q[1].y}" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="7 5"/>` + lab((Q[0].x + Q[1].x) / 2, (Q[0].y + Q[1].y) / 2 - 8, fmt(dist(CAD.tmp.m[0], CAD.tmp.m[1])), '#b45309', 14);
+    }
+  }
+  // north arrow + scale
+  h += `<polygon points="${W - 26},12 ${W - 35},38 ${W - 26},32 ${W - 17},38" fill="#0f172a"/><text x="${W - 26}" y="54" text-anchor="middle" font-size="13" font-weight="800">N</text>`;
+  const sb = niceStep(90 / view.s), px = sb * view.s;
+  h += `<line x1="14" y1="${H - 16}" x2="${14 + px}" y2="${H - 16}" stroke="#0f172a" stroke-width="3"/>` + lab(14 + px / 2, H - 22, `${fmt(sb, sb < 1 ? 2 : 0)} ${cadU()}`, '#0f172a', 12);
+  return h;
+}
+let cadRaf = null;
+function cadRender() {
+  if (!CAD.open) return;
+  if (cadRaf) return;
+  cadRaf = requestAnimationFrame(() => {
+    cadRaf = null;
+    const { W, H } = cadSize(), svg = document.getElementById('cadSvg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    svg.innerHTML = cadSvgString(W, H, CAD.view, false);
+    cadStatus();
+  });
+}
+function cadStatus() {
+  const el = document.getElementById('cadStatus'); if (!el) return;
+  const t = CAD.tool, parts = [];
+  if (t === 'line') parts.push(CAD.cur ? `നിലവിലെ പോയിന്റ് (${fmt(CAD.cur.x)}, ${fmt(CAD.cur.y)}) - നീളവും കോണും നൽകുക, അല്ലെങ്കിൽ അടുത്ത പോയിന്റിൽ തൊടുക` : 'തുടങ്ങേണ്ട പോയിന്റിൽ തൊടുക (അല്ലെങ്കിൽ നേരെ നീളം നൽകിയാൽ 0,0-ൽ തുടങ്ങും)');
+  else if (t === 'circle') parts.push(CAD.tmp.c ? 'റേഡിയസ് നൽകുക, അല്ലെങ്കിൽ വൃത്തത്തിലെ ഒരു പോയിന്റിൽ തൊടുക' : 'കേന്ദ്രത്തിൽ തൊടുക');
+  else if (t === 'arc') parts.push(CAD.tmp.c ? 'റേഡിയസും കോണുകളും നൽകി "ചേർക്കുക"' : 'കേന്ദ്രത്തിൽ തൊടുക');
+  else if (t === 'rect') parts.push(CAD.tmp.p ? 'നീളം, വീതി നൽകി "ചേർക്കുക"' : 'ഒരു മൂലയിൽ തൊടുക');
+  else if (t === 'text') parts.push(CAD.tmp.p ? 'എഴുത്ത് ടൈപ്പ് ചെയ്ത് "ചേർക്കുക"' : 'എഴുത്ത് വരേണ്ട സ്ഥലത്ത് തൊടുക');
+  else if (t === 'measure') parts.push('രണ്ട് പോയിന്റുകളിൽ തൊടുക');
+  else parts.push('ഒരു വരയിലോ രൂപത്തിലോ തൊട്ട് തിരഞ്ഞെടുക്കുക');
+  if (CAD.lastSnap && t !== 'select') parts.push(`സ്നാപ്പ്: ${CAD.lastSnap.k}`);
+  el.textContent = parts.join(' • ');
+}
+function cadFit() {
+  const pts = [];
+  cadEnts().forEach(e => {
+    if (e.type === 'pline') pts.push(...e.pts);
+    else if (e.type === 'circle' || e.type === 'arc') { pts.push({ x: e.c.x - e.r, y: e.c.y - e.r }, { x: e.c.x + e.r, y: e.c.y + e.r }); }
+    else if (e.type === 'text') pts.push(e.p);
+    else if (e.type === 'dim') pts.push(e.a, e.b);
+  });
+  if (CAD.cur) pts.push(CAD.cur);
+  const { W, H } = cadSize();
+  if (!pts.length) { CAD.view = { s: Math.min(W, H) / 40, ox: W * 0.2, oy: H * 0.8 }; cadRender(); return; }
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const s = Math.min((W - 80) / Math.max(maxX - minX, 1e-3), (H - 80) / Math.max(maxY - minY, 1e-3), 400);
+  CAD.view = { s, ox: W / 2 - (minX + maxX) / 2 * s, oy: H / 2 + (minY + maxY) / 2 * s };
+  cadRender();
+}
+function cadZoom(k, at) {
+  const { W, H } = cadSize(), c = at || { x: W / 2, y: H / 2 }, w = cadS2W(c);
+  CAD.view.s = Math.max(0.01, Math.min(5000, CAD.view.s * k));
+  CAD.view.ox = c.x - w.x * CAD.view.s; CAD.view.oy = c.y + w.y * CAD.view.s;
+  cadRender();
+}
+
+// ---- UI: tools & panel ----
+function cadTools() {
+  document.getElementById('cadTools').innerHTML = CAD_TOOLS.map(([k, ic, name]) =>
+    `<button type="button" class="${CAD.tool === k ? 'on' : ''}" onclick="cadSetTool('${k}')"><span>${ic}</span>${name}</button>`).join('');
+}
+function cadSetTool(t) {
+  if (t !== 'line' && CAD.tool === 'line') { /* keep chain so user can come back */ }
+  CAD.tool = t; CAD.tmp = {}; CAD.lastSnap = null;
+  if (t !== 'select' && t !== 'more') CAD.sel = null;
+  cadTools(); cadPanel(); cadRender();
+}
+function cadAngleModeSel() {
+  const m = S.cad.angleMode;
+  return `<select id="cAM" onchange="S.cad.angleMode=this.value;persist();cadPanel()">
+    <option value="cad" ${m === 'cad' ? 'selected' : ''}>CAD: കിഴക്ക് 0°, എതിർ ഘടികാരം</option>
+    <option value="bearing" ${m === 'bearing' ? 'selected' : ''}>ബെയറിംഗ്: വടക്ക് 0°, ഘടികാരം</option>
+    <option value="defl" ${m === 'defl' ? 'selected' : ''}>മുൻവരയിൽ നിന്ന് തിരിയൽ (ഇടത് +)</option></select>`;
+}
+function cadQuick() {
+  const m = S.cad.angleMode;
+  const q = m === 'cad' ? [['0', '→'], ['90', '↑'], ['180', '←'], ['270', '↓'], ['45', '↗']]
+    : m === 'bearing' ? [['0', 'N ↑'], ['90', 'E →'], ['180', 'S ↓'], ['270', 'W ←']]
+      : [['0', 'നേരെ'], ['90', 'ഇടത് 90°'], ['-90', 'വലത് 90°'], ['180', 'തിരികെ']];
+  return q.map(([v, l]) => `<button type="button" class="chip" onclick="document.getElementById('cA').value='${v}';CAD.form.A='${v}'">${l}</button>`).join('');
+}
+function cadPanel() {
+  const el = document.getElementById('cadPanel'); if (!el) return;
+  const u = cadU(), t = CAD.tool;
+  let h = '';
+  if (t === 'line') {
+    h = `<div class="row c2">
+        <div><label class="f">നീളം (${u})</label><input id="cL" type="number" inputmode="decimal" value="${esc(CAD.form.L)}" placeholder="ഉദാ: 12.5" enterkeyhint="done" onkeydown="if(event.key==='Enter'){cadAddFromFields()}" /></div>
+        <div><label class="f">കോൺ / ദിശ</label><input id="cA" type="text" value="${esc(CAD.form.A)}" placeholder="ഉദാ: 90, 45°30', N45E" oninput="CAD.form.A=this.value" /></div>
+      </div>
+      <div class="chips" style="margin:8px 0">${cadQuick()}</div>
+      <div class="btns"><button type="button" class="btn pri" onclick="cadAddFromFields()">➕ വര ചേർക്കുക</button>
+        <button type="button" class="btn sm" onclick="cadClose()">⟲ അടയ്ക്കുക</button>
+        <button type="button" class="btn sm" onclick="cadEndChain()">⏹ നിർത്തുക</button></div>
+      <details style="margin-top:8px"><summary class="hint" style="cursor:pointer">കോൺ അളക്കുന്ന രീതി / തുടക്ക പോയിന്റ്</summary>
+        <div style="margin-top:6px">${cadAngleModeSel()}</div>
+        <div class="row c3" style="margin-top:8px"><div><label class="f">X</label><input id="cSX" type="number" inputmode="decimal" placeholder="0" /></div><div><label class="f">Y</label><input id="cSY" type="number" inputmode="decimal" placeholder="0" /></div>
+        <div style="display:flex;align-items:flex-end"><button type="button" class="btn sm" style="width:100%" onclick="cadStartAt()">ഇവിടെ തുടങ്ങുക</button></div></div>
+        <p class="hint" style="margin:6px 0 0">N45E, S30W പോലുള്ള ബെയറിംഗ് ഏത് രീതിയിലും നൽകാം. ഡിഗ്രി-മിനിറ്റ്: 45°30' അല്ലെങ്കിൽ 45 30.</p></details>`;
+  } else if (t === 'circle') {
+    h = `<div class="row c2"><div><label class="f">റേഡിയസ് (${u})</label><input id="cR" type="number" inputmode="decimal" placeholder="ഉദാ: 1.5" /></div>
+      <div style="display:flex;align-items:flex-end"><button type="button" class="btn pri" style="width:100%" onclick="cadAddCircleR()">⭕ ചേർക്കുക</button></div></div>
+      <p class="hint" style="margin:6px 0 0">${CAD.tmp.c ? `കേന്ദ്രം: (${fmt(CAD.tmp.c.x)}, ${fmt(CAD.tmp.c.y)})` : 'കേന്ദ്രത്തിൽ തൊടുക (കിണർ, മരം മുതലായവ). കേന്ദ്രം തൊടാതെ ചേർത്താൽ നിലവിലെ പോയിന്റ് കേന്ദ്രമാകും.'}</p>`;
+  } else if (t === 'arc') {
+    h = `<div class="row c3"><div><label class="f">റേഡിയസ്</label><input id="cR" type="number" inputmode="decimal" /></div>
+      <div><label class="f">തുടക്ക കോൺ°</label><input id="cA0" type="text" inputmode="decimal" placeholder="0" /></div>
+      <div><label class="f">അവസാന കോൺ°</label><input id="cA1" type="text" inputmode="decimal" placeholder="90" /></div></div>
+      <div class="btns" style="margin-top:8px"><button type="button" class="btn pri" onclick="cadAddArc()">◠ ചേർക്കുക</button></div>
+      <p class="hint" style="margin:6px 0 0">കോണുകൾ CAD രീതിയിൽ: കിഴക്ക് 0°, എതിർ ഘടികാരദിശയിൽ. ${CAD.tmp.c ? `കേന്ദ്രം: (${fmt(CAD.tmp.c.x)}, ${fmt(CAD.tmp.c.y)})` : 'ആദ്യം കേന്ദ്രത്തിൽ തൊടുക.'}</p>`;
+  } else if (t === 'rect') {
+    h = `<div class="row c3"><div><label class="f">നീളം (${u})</label><input id="cRW" type="number" inputmode="decimal" /></div>
+      <div><label class="f">വീതി (${u})</label><input id="cRH" type="number" inputmode="decimal" /></div>
+      <div><label class="f">ചരിവ്° (CAD)</label><input id="cRA" type="number" inputmode="decimal" placeholder="0" /></div></div>
+      <div class="btns" style="margin-top:8px"><button type="button" class="btn pri" onclick="cadAddRect()">▭ ചേർക്കുക</button></div>
+      <p class="hint" style="margin:6px 0 0">${CAD.tmp.p ? `മൂല: (${fmt(CAD.tmp.p.x)}, ${fmt(CAD.tmp.p.y)})` : 'ആദ്യം താഴെ-ഇടത് മൂലയിൽ തൊടുക.'}</p>`;
+  } else if (t === 'text') {
+    h = `<div class="row c2"><div><label class="f">എഴുത്ത്</label><input id="cTxt" type="text" placeholder="ഉദാ: കിണർ, റോഡ്, A" onkeydown="if(event.key==='Enter'){cadAddText()}" /></div>
+      <div style="display:flex;align-items:flex-end"><button type="button" class="btn pri" style="width:100%" onclick="cadAddText()">🔤 ചേർക്കുക</button></div></div>`;
+  } else if (t === 'measure') {
+    const m = CAD.tmp.m;
+    if (m && m.length === 2) {
+      const d = dist(m[0], m[1]), b = bearingOf(m[0], m[1]);
+      h = `<table class="t"><tr><th>നീളം</th><td class="n"><b>${fmt(d, 3)} ${u}</b></td></tr><tr><th>ബെയറിംഗ്</th><td class="n">${fmt(b, 2)}° (${bearingText(b)})</td></tr><tr><th>CAD കോൺ</th><td class="n">${fmt(mod(degOf(m[0], m[1]), 360), 2)}°</td></tr><tr><th>ΔX, ΔY</th><td class="n">${fmt(m[1].x - m[0].x)}, ${fmt(m[1].y - m[0].y)}</td></tr></table>
+        <div class="btns" style="margin-top:8px"><button type="button" class="btn sm" onclick="cadAddDim()">↔ ഡൈമെൻഷൻ ആയി ചേർക്കുക</button></div>`;
+    } else h = `<p class="hint" style="margin:0">ഏതെങ്കിലും രണ്ട് പോയിന്റുകളിൽ തൊടുക (മൂലകളിലേക്കും നടുവിലേക്കും കൂട്ടിമുട്ടലുകളിലേക്കും സ്നാപ്പ് ചെയ്യും).</p>`;
+  } else if (t === 'more') {
+    h = `<div class="btns">
+      <button type="button" class="btn sm" onclick="S.cad.labels=!S.cad.labels;persist();cadRender();cadPanel()">${S.cad.labels ? '🏷 അളവ് ലേബലുകൾ മറയ്ക്കുക' : '🏷 അളവ് ലേബലുകൾ കാണിക്കുക'}</button>
+      <button type="button" class="btn sm" onclick="cadImportPlot()">⬇ "അളവ്" പേജിലെ ഭൂമി ഇവിടേക്ക്</button>
+      <button type="button" class="btn sm" onclick="cadPng()">🖼 ചിത്രം (PNG)</button>
+      <button type="button" class="btn sm warn" onclick="cadClearAll()">🗑 എല്ലാം മായ്ക്കുക</button></div>
+      <div style="margin-top:8px"><label class="f">കോൺ അളക്കുന്ന രീതി</label>${cadAngleModeSel()}</div>
+      <p class="hint" style="margin:8px 0 0">കമാൻഡ് ഉദാഹരണങ്ങൾ: <b>10,5</b> = X,Y പോയിന്റ് • <b>@3,4</b> = ഇപ്പോഴത്തെ പോയിന്റിൽ നിന്ന് • <b>12&lt;90</b> = 12 നീളം, 90° കോൺ • <b>12&lt;N45E</b> • <b>12</b> = നൽകിയ കോണിൽ 12 • <b>c</b> = അടയ്ക്കുക • <b>u</b> = undo • <b>z</b> = മുഴുവൻ കാണുക</p>`;
+  } else {
+    const e = CAD.sel !== null ? cadEnts()[CAD.sel] : null;
+    if (!e) h = '<p class="hint" style="margin:0">ഒരു വരയിലോ രൂപത്തിലോ തൊട്ടാൽ അതിന്റെ അളവുകൾ, വിസ്തീർണ്ണം, മായ്ക്കൽ തുടങ്ങിയവ ഇവിടെ കാണാം.</p>';
+    else if (e.type === 'pline') {
+      const n = e.pts.length, segs = e.closed ? n : n - 1;
+      const rows = Array.from({ length: segs }, (_, k) => { const a = e.pts[k], b = e.pts[mod(k + 1, n)]; return `<tr><td>${k + 1}</td><td class="n">${fmt(dist(a, b))}</td><td class="n">${bearingText(bearingOf(a, b))}</td></tr>`; }).join('');
+      h = `<div class="bigsub">${e.closed ? 'അടച്ച രൂപം' : 'തുറന്ന വര'} • ${segs} വശങ്ങൾ • ചുറ്റളവ് ${fmt(plineLen(e))} ${u}</div>
+        ${e.closed ? `<div class="big" style="font-size:22px">${cadAreaText(polyArea(e.pts))}</div>` : ''}
+        <details style="margin:6px 0"><summary class="hint" style="cursor:pointer">വശങ്ങളുടെ നീളവും ദിശയും</summary><table class="t"><tr><th>#</th><th>നീളം (${u})</th><th>ബെയറിംഗ്</th></tr>${rows}</table></details>
+        <div class="btns">${e.closed ? `<button type="button" class="btn pri sm" onclick="cadUseAsPlot()">🏠 ഈ രൂപം ഭൂമിയായി ഉപയോഗിക്കുക</button>` : `<button type="button" class="btn sm" onclick="cadCloseSel()">⟲ അടയ്ക്കുക</button><button type="button" class="btn sm" onclick="cadContinueSel()">➡ തുടരുക</button>`}
+        <button type="button" class="btn sm warn" onclick="cadDeleteSel()">🗑 മായ്ക്കുക</button></div>`;
+    } else if (e.type === 'circle') {
+      const f = LEN[S.unit] || 1;
+      h = `<div class="bigsub">വൃത്തം • റേഡിയസ് ${fmt(e.r)} ${u} • വ്യാസം ${fmt(2 * e.r)} • ചുറ്റളവ് ${fmt(2 * Math.PI * e.r)}</div><div class="bigsub">വിസ്തീർണ്ണം ${fmt(Math.PI * e.r * e.r * f * f)} ച.മീ • കേന്ദ്രം (${fmt(e.c.x)}, ${fmt(e.c.y)})</div>
+        <div class="btns" style="margin-top:8px"><button type="button" class="btn sm warn" onclick="cadDeleteSel()">🗑 മായ്ക്കുക</button></div>`;
+    } else {
+      const info = e.type === 'arc' ? `ആർക്ക് • R ${fmt(e.r)} • ${fmt(e.a0)}° → ${fmt(e.a1)}°` : e.type === 'text' ? `എഴുത്ത്: ${esc(e.t)}` : `ഡൈമെൻഷൻ • ${fmt(dist(e.a, e.b))} ${u}`;
+      h = `<div class="bigsub">${info}</div><div class="btns" style="margin-top:8px"><button type="button" class="btn sm warn" onclick="cadDeleteSel()">🗑 മായ്ക്കുക</button></div>`;
+    }
+  }
+  el.innerHTML = h;
+}
+function cadStartAt() {
+  const x = num(document.getElementById('cSX').value), y = num(document.getElementById('cSY').value);
+  CAD.cur = { x: isFinite(x) ? x : 0, y: isFinite(y) ? y : 0 }; CAD.chain = null;
+  cadPanel(); cadRender(); cadAutoPan();
+}
+async function cadPng() {
+  if (!cadEnts().length) { toast('ആദ്യം എന്തെങ്കിലും വരയ്ക്കുക'); return; }
+  const saved = { ...CAD.view };
+  const W = 1600, H = 1200;
+  const el = { clientWidth: W, clientHeight: H };
+  const pts = [];
+  cadEnts().forEach(e => { if (e.type === 'pline') pts.push(...e.pts); else if (e.c) pts.push({ x: e.c.x - e.r, y: e.c.y - e.r }, { x: e.c.x + e.r, y: e.c.y + e.r }); else if (e.p) pts.push(e.p); else if (e.a) pts.push(e.a, e.b); });
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const s = Math.min((W - 200) / Math.max(maxX - minX, 1e-3), (H - 200) / Math.max(maxY - minY, 1e-3));
+  const view = { s, ox: W / 2 - (minX + maxX) / 2 * s, oy: H / 2 + (minY + maxY) / 2 * s };
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">${cadSvgString(W, H, view, true)}</svg>`;
+  CAD.view = saved;
+  try { downloadBlob(await svgToPngBlob(svg), `${fileBase()}_cad.png`); toast('ചിത്രം ഡൗൺലോഡ് ചെയ്തു'); } catch (e) { toast('ചിത്രം ഉണ്ടാക്കാൻ സാധിച്ചില്ല'); }
+}
+
+// ---- open / close ----
+function cadOpen() {
+  CAD.open = true;
+  document.getElementById('cadUnitPill').textContent = LEN_NAME[S.unit];
+  document.body.classList.add('cad-open');
+  document.getElementById('cadView').hidden = false;
+  document.body.style.overflow = 'hidden';
+  cadTools(); cadPanel();
+  requestAnimationFrame(() => { cadFit(); });
+}
+function cadExit() {
+  CAD.open = false;
+  document.getElementById('cadView').hidden = true;
+  document.body.style.overflow = '';
+  document.body.classList.remove('cad-open');
+  persist();
+}
+
+(function initCad() {
+  const svg = document.getElementById('cadSvg');
+  const P = new Map();
+  let g = null;
+  const rel = (e) => { const r = svg.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  svg.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    try { svg.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    P.set(e.pointerId, rel(e));
+    if (P.size === 1) { const p = rel(e); g = { type: 'tap', sx: p.x, sy: p.y, ox: CAD.view.ox, oy: CAD.view.oy }; }
+    else if (P.size === 2) {
+      const [a, b] = [...P.values()];
+      g = { type: 'pinch', d0: Math.hypot(a.x - b.x, a.y - b.y) || 1, s0: CAD.view.s, m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, ox0: CAD.view.ox, oy0: CAD.view.oy };
+    }
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (!P.has(e.pointerId) || !g) return;
+    P.set(e.pointerId, rel(e));
+    if (g.type === 'pinch' && P.size >= 2) {
+      const [a, b] = [...P.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y), m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const s = Math.max(0.01, Math.min(5000, g.s0 * d / g.d0));
+      const wx = (g.m0.x - g.ox0) / g.s0, wy = (g.oy0 - g.m0.y) / g.s0;
+      CAD.view = { s, ox: m.x - wx * s, oy: m.y + wy * s };
+      cadRender();
+    } else if (g.type === 'tap' || g.type === 'pan') {
+      const p = rel(e);
+      if (g.type === 'tap' && Math.hypot(p.x - g.sx, p.y - g.sy) > 8) g.type = 'pan';
+      if (g.type === 'pan') { CAD.view.ox = g.ox + p.x - g.sx; CAD.view.oy = g.oy + p.y - g.sy; cadRender(); }
+    }
+  });
+  const up = (e) => {
+    if (g && g.type === 'tap' && P.size === 1) cadTap(rel(e));
+    P.delete(e.pointerId);
+    if (P.size === 0) g = null; else if (g && g.type === 'pinch') g = { type: 'none' };
+  };
+  svg.addEventListener('pointerup', up);
+  svg.addEventListener('pointercancel', (e) => { P.delete(e.pointerId); if (!P.size) g = null; });
+  svg.addEventListener('wheel', (e) => { e.preventDefault(); cadZoom(e.deltaY < 0 ? 1.15 : 1 / 1.15, rel(e)); }, { passive: false });
+  window.addEventListener('resize', () => cadRender());
+})();
+
+// ============================================================================
 // Input handlers
 // ============================================================================
 function changeN(d) {
@@ -1777,6 +2426,8 @@ function loadState(obj) {
   S.part = Object.assign(b.part, (obj && obj.part) || {});
   S.add = Object.assign(b.add, (obj && obj.add) || {});
   S.deductions = Array.isArray(obj && obj.deductions) ? obj.deductions : [];
+  S.cad = Object.assign(b.cad, (obj && obj.cad) || {}); if (!Array.isArray(S.cad.ents)) S.cad.ents = [];
+  CAD.cur = null; CAD.chain = null; CAD.sel = null; CAD.undo = []; CAD.redo = [];
   S.sides = Array.isArray(S.sides) ? S.sides : [];
   S.diags = S.diags || {}; S.flips = S.flips || {}; S.gps = Array.isArray(S.gps) ? S.gps : [];
   if (!Array.isArray(S.shape) || S.shape.length !== S.n) S.shape = null;
