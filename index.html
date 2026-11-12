@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="ml">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#065f46" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<title>ഭൂമി അളവ് & സ്കെച്ച്</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<style>
+  :root {
+    --g9: #022c22; --g8: #065f46; --g7: #047857; --g6: #059669; --g1: #d1fae5; --g0: #ecfdf5;
+    --s9: #0f172a; --s7: #334155; --s5: #64748b; --s3: #cbd5e1; --s2: #e2e8f0; --s1: #f1f5f9; --s0: #f8fafc;
+    --red: #b91c1c; --redbg: #fef2f2; --amb: #92400e; --ambbg: #fffbeb;
+    --tabh: 62px; --barh: 46px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans Malayalam', 'Manjari', 'Nirmala UI', 'Kartika', system-ui, sans-serif;
+    background: var(--s1); color: var(--s9); font-size: 15px; line-height: 1.45;
+    padding-bottom: calc(var(--tabh) + var(--barh) + env(safe-area-inset-bottom));
+  }
+  .appbar {
+    position: sticky; top: 0; z-index: 20; background: var(--g8); color: #fff;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 10px 14px; padding-top: calc(10px + env(safe-area-inset-top));
+    box-shadow: 0 2px 6px rgba(0,0,0,.15);
+  }
+  .appbar h1 { font-size: 17px; margin: 0; font-weight: 700; line-height: 1.2; }
+  .appbar small { display: block; font-size: 11.5px; font-weight: 500; opacity: .85; }
+  .appbar button { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.35); border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; }
+  main { max-width: 760px; margin: 0 auto; padding: 12px; }
+  .tab { display: none; }
+  .tab.active { display: block; }
+  .card { background: #fff; border: 1px solid var(--s2); border-radius: 16px; padding: 14px; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .card h2 { font-size: 15px; margin: 0 0 4px; color: var(--g9); }
+  .hint { font-size: 12.5px; color: var(--s5); margin: 0 0 10px; }
+  label.f { display: block; font-size: 12.5px; font-weight: 600; color: var(--s7); margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%; font: inherit; font-size: 16px; padding: 10px 11px; border-radius: 11px;
+    border: 1px solid var(--s3); background: #fff; color: var(--s9);
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g6); box-shadow: 0 0 0 3px rgba(5,150,105,.15); }
+  textarea { resize: vertical; }
+  .row { display: grid; gap: 10px; }
+  .c2 { grid-template-columns: 1fr 1fr; }
+  .c3 { grid-template-columns: 1fr 1fr 1fr; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 14px; font-weight: 700; border-radius: 12px; padding: 11px 14px; border: 1px solid var(--s3); background: #fff; color: var(--s9); cursor: pointer; }
+  .btn.pri { background: var(--g7); border-color: var(--g7); color: #fff; }
+  .btn.warn { background: var(--redbg); border-color: #fecaca; color: var(--red); }
+  .btn.sm { padding: 7px 10px; font-size: 13px; border-radius: 10px; }
+  .btn:disabled { opacity: .5; }
+  .btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .stepper { display: flex; align-items: center; gap: 10px; }
+  .stepper button { width: 46px; height: 46px; font-size: 24px; font-weight: 700; border-radius: 12px; border: 1px solid var(--s3); background: var(--s0); }
+  .stepper .val { font-size: 26px; font-weight: 800; min-width: 44px; text-align: center; color: var(--g8); }
+  .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+  .mcell { position: relative; }
+  .mcell .tag { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-weight: 800; color: var(--g8); font-size: 14px; pointer-events: none; }
+  .mcell input { padding-left: 46px; font-weight: 600; }
+  .mcell.diag .tag { color: #7c3aed; }
+  .mcell.bad input { border-color: var(--red); background: var(--redbg); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 999px; border: 1px solid var(--s3); background: var(--s0); font-size: 13px; font-weight: 600; }
+  .chip input { width: 18px; height: 18px; margin: 0; }
+  .msg { border-radius: 12px; padding: 10px 12px; font-size: 13.5px; margin-bottom: 10px; }
+  .msg.err { background: var(--redbg); color: var(--red); border: 1px solid #fecaca; }
+  .msg.warn { background: var(--ambbg); color: var(--amb); border: 1px solid #fde68a; }
+  .msg.ok { background: var(--g0); color: var(--g8); border: 1px solid #a7f3d0; }
+  .msg.info { background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; }
+  table.t { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  table.t th, table.t td { border: 1px solid var(--s2); padding: 7px 8px; text-align: left; vertical-align: top; }
+  table.t th { background: var(--s0); font-weight: 700; color: var(--s7); }
+  table.t td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .big { font-size: 30px; font-weight: 800; color: var(--g8); line-height: 1.1; }
+  .bigsub { font-size: 14px; color: var(--s7); font-weight: 600; }
+  .sketchbox { background: #fff; border: 1px solid var(--s2); border-radius: 14px; overflow: hidden; }
+  .sketchbox svg { display: block; width: 100%; height: auto; touch-action: pan-y; }
+  .livebar {
+    position: fixed; left: 0; right: 0; bottom: calc(var(--tabh) + env(safe-area-inset-bottom)); height: var(--barh); z-index: 19;
+    background: var(--g9); color: #fff; display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 14px; font-weight: 700; padding: 0 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .livebar .dim { opacity: .75; font-weight: 500; }
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: #fff; border-top: 1px solid var(--s2);
+    display: grid; grid-template-columns: repeat(6, 1fr); height: calc(var(--tabh) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabbar button { border: 0; background: none; font: inherit; font-size: 11.5px; font-weight: 600; color: var(--s5); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .tabbar button svg { width: 23px; height: 23px; }
+  .tabbar button.active { color: var(--g7); }
+  .tabbar button.active svg { stroke: var(--g7); }
+  .pill { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--g1); color: var(--g8); }
+  .list-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--s2); }
+  .list-item:last-child { border-bottom: 0; }
+  .list-item .meta { font-size: 12px; color: var(--s5); }
+  details.guide summary { font-weight: 700; cursor: pointer; color: var(--g9); }
+  details.guide ol { padding-left: 20px; margin: 8px 0 0; font-size: 13.5px; }
+  details.guide li { margin-bottom: 6px; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabh) + var(--barh) + 14px); background: var(--s9); color: #fff; padding: 10px 16px; border-radius: 12px; font-size: 13.5px; z-index: 50; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; text-align: center; }
+  .toast.show { opacity: 1; }
+  #printArea { display: none; }
+  @media (max-width: 380px) { .mgrid { grid-template-columns: 1fr; } .c3 { grid-template-columns: 1fr 1fr; } }
+  @media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    body { background: #fff; padding: 0; font-size: 12.5px; }
+    .appbar, main, .livebar, .tabbar, .toast { display: none !important; }
+    #printArea { display: block; }
+    #printArea h1 { font-size: 17px; text-align: center; margin: 0 0 2px; }
+    #printArea .sub { text-align: center; font-size: 12px; margin-bottom: 10px; }
+    #printArea table.t { font-size: 11.5px; margin-bottom: 8px; }
+    #printArea table.t th, #printArea table.t td { padding: 4px 6px; border-color: #94a3b8; }
+    #printArea .sk { border: 1px solid #94a3b8; margin: 6px 0; }
+    #printArea .sk svg { width: 100%; height: auto; display: block; }
+    #printArea .sign { display: flex; justify-content: space-between; margin-top: 26px; }
+    .avoid { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="appbar">
+  <div>
+    <h1>ഭൂമി അളവ് &amp; സ്കെച്ച്</h1>
+    <small id="hdrName">പുതിയ പ്ലോട്ട്</small>
+  </div>
+  <button type="button" onclick="savePlot()">സേവ്</button>
+</header>
+
+<main>
+  <!-- ================= TAB 1: MEASURE ================= -->
+  <section id="tab-measure" class="tab active">
+    <div class="card">
+      <div class="sketchbox"><svg id="miniSketch" viewBox="0 0 1000 560"></svg></div>
+    </div>
+
+    <div class="card">
+      <h2>1. ഭൂമിക്ക് എത്ര മൂലകൾ (കോണുകൾ)?</h2>
+      <p class="hint">ഓരോ മൂലയ്ക്കും A, B, C... എന്ന് പേര്. ഭൂമിയുടെ അതിരിലൂടെ ക്രമത്തിൽ നടന്ന് അളക്കുക.</p>
+      <div class="stepper">
+        <button type="button" onclick="changeN(-1)" aria-label="കുറയ്ക്കുക">−</button>
+        <span class="val" id="nVal">4</span>
+        <button type="button" onclick="changeN(1)" aria-label="കൂട്ടുക">+</button>
+        <span class="hint" style="margin:0" id="nHint"></span>
+      </div>
+      <div class="row c2" style="margin-top:12px">
+        <div>
+          <label class="f">അളവിന്റെ യൂണിറ്റ്</label>
+          <select id="unitSel" onchange="setField('unit', this.value)">
+            <option value="m">മീറ്റർ (m)</option>
+            <option value="ft">അടി (feet)</option>
+            <option value="link">ലിങ്ക് (link)</option>
+          </select>
+        </div>
+        <div>
+          <label class="f">നടന്ന ദിശ</label>
+          <select id="dirSel" onchange="setField('dir', this.value)">
+            <option value="cw">ഘടികാരദിശ ↻</option>
+            <option value="ccw">എതിർദിശ ↺</option>
+          </select>
+        </div>
+        <div style="grid-column: 1 / -1">
+          <label class="f">കോണോടുകോൺ (diagonal) അളക്കുന്നത് ഏത് മൂലയിൽ നിന്ന്</label>
+          <select id="baseSel" onchange="setField('base', parseInt(this.value, 10))"></select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>2. വശങ്ങളുടെ നീളം</h2>
+      <p class="hint">ഓരോ അതിരിന്റെയും നേർനീളം ടേപ്പ് / ചെയിൻ ഉപയോഗിച്ച് അളന്ന് നൽകുക.</p>
+      <div class="mgrid" id="sideInputs"></div>
+    </div>
+
+    <div class="card" id="diagCard">
+      <h2>3. കോണോടുകോൺ അളവുകൾ (Diagonals)</h2>
+      <p class="hint" id="diagHint"></p>
+      <div class="mgrid" id="diagInputs"></div>
+    </div>
+
+    <div class="card" id="flipCard">
+      <h2>4. അകത്തേക്ക് വളഞ്ഞ മൂലകൾ (ആവശ്യമെങ്കിൽ മാത്രം)</h2>
+      <p class="hint">ഭൂമിയുടെ ഏതെങ്കിലും മൂല അകത്തേക്ക് കയറിയതാണെങ്കിലോ (L ആകൃതി പോലെ), സ്കെച്ചിലെ ആകൃതി യഥാർത്ഥ ഭൂമിയുമായി ചേരുന്നില്ലെങ്കിലോ ആ മൂല ടിക്ക് ചെയ്യുക. അപ്പോൾ ആ മൂല മറുവശത്തേക്ക് മാറും.</p>
+      <div class="chips" id="flipChips"></div>
+    </div>
+
+    <div id="measureMsgs"></div>
+  </section>
+
+  <!-- ================= TAB 2: SKETCH ================= -->
+  <section id="tab-sketch" class="tab">
+    <div class="card">
+      <div class="sketchbox"><svg id="bigSketch" viewBox="0 0 1000 1000"></svg></div>
+      <div class="chips" style="margin-top:10px">
+        <label class="chip"><input type="checkbox" id="optLen" checked onchange="setOpt('showLen', this.checked)" /> നീളം</label>
+        <label class="chip"><input type="checkbox" id="optDiag" checked onchange="setOpt('showDiag', this.checked)" /> കോണോടുകോൺ</label>
+        <label class="chip"><input type="checkbox" id="optTri" onchange="setOpt('showTri', this.checked)" /> ത്രികോണ വിസ്തീർണം</label>
+        <label class="chip"><input type="checkbox" id="optGrid" onchange="setOpt('showGrid', this.checked)" /> ഗ്രിഡ്</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>വടക്ക് ദിശ (ഐച്ഛികം)</h2>
+      <p class="hint">A→B വശം വടക്കിൽ നിന്ന് എത്ര ഡിഗ്രി (ഘടികാരദിശയിൽ) എന്ന് നൽകിയാൽ സ്കെച്ച് വടക്ക് മുകളിലാക്കി തിരിക്കും. A-യിൽ നിന്ന് ഫോൺ B-യ്ക്ക് നേരെ പിടിച്ച് "കോമ്പസ്" അമർത്തിയും എടുക്കാം.</p>
+      <div class="row c2">
+        <div>
+          <label class="f">A→B ദിശ (ഡിഗ്രി, 0–360)</label>
+          <input type="number" inputmode="decimal" id="bearingInp" placeholder="ഉദാ: 75" oninput="setField('bearing', this.value, true)" />
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px">
+          <button type="button" class="btn" style="flex:1" onclick="readCompass()">🧭 കോമ്പസ്</button>
+          <button type="button" class="btn sm" onclick="document.getElementById('bearingInp').value='';setField('bearing','',true)">✕</button>
+        </div>
+      </div>
+      <p class="hint" id="compassStatus" style="margin:8px 0 0"></p>
+    </div>
+
+    <div class="card">
+      <div class="btns">
+        <button type="button" class="btn pri" onclick="downloadPNG()">⬇ ചിത്രം (PNG)</button>
+        <button type="button" class="btn" onclick="sharePNG()">📤 ഷെയർ</button>
+        <button type="button" class="btn" onclick="printReport()">🖨 പ്രിന്റ് / PDF</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TAB 3: RESULT ================= -->
+  <section id="tab-result" class="tab">
+    <div id="resultBox"></div>
+
+    <div class="card">
+      <h2>അളവ് ശരിയാണോ? (പരിശോധനാ അളവ്)</h2>
+      <p class="hint">ഏതെങ്കിലും രണ്ട് മൂലകൾക്കിടയിലെ നീളം (ഉദാ: B–D) ഒരിക്കൽ കൂടി അളന്ന് നൽകുക. സ്കെച്ചിൽ നിന്ന് കണക്കാക്കിയ നീളവുമായി ഒത്തുനോക്കും.</p>
+      <div class="row c3">
+        <div><label class="f">മൂല 1</label><select id="chkA" onchange="setCheck()"></select></div>
+        <div><label class="f">മൂല 2</label><select id="chkB" onchange="setCheck()"></select></div>
+        <div><label class="f">അളന്ന നീളം</label><input type="number" inputmode="decimal" id="chkLen" oninput="setCheck()" placeholder="0.00" /></div>
+      </div>
+      <div id="chkOut" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ================= TAB 4: DETAILS ================= -->
+  <section id="tab-details" class="tab">
+    <div class="card">
+      <h2>ഭൂമിയുടെ വിവരങ്ങൾ</h2>
+      <p class="hint">സ്കെച്ചിലും പ്രിന്റിലും ഇവ വരും.</p>
+      <div class="row">
+        <div><label class="f">പ്ലോട്ടിന്റെ പേര്</label><input type="text" data-d="name" placeholder="ഉദാ: രാധാകൃഷ്ണൻ - പുരയിടം" /></div>
+        <div class="row c2">
+          <div><label class="f">ഉടമ / കൈവശക്കാരൻ</label><input type="text" data-d="owner" /></div>
+          <div><label class="f">സർവ്വേ / റീസർവ്വേ നം.</label><input type="text" data-d="survey" /></div>
+        </div>
+        <div class="row c2">
+          <div><label class="f">വില്ലേജ്</label><input type="text" data-d="village" /></div>
+          <div><label class="f">അളന്ന തീയതി</label><input type="date" data-d="date" /></div>
+        </div>
+        <div class="row c2">
+          <div><label class="f">വടക്ക് അതിര്</label><input type="text" data-d="north" /></div>
+          <div><label class="f">കിഴക്ക് അതിര്</label><input type="text" data-d="east" /></div>
+          <div><label class="f">തെക്ക് അതിര്</label><input type="text" data-d="south" /></div>
+          <div><label class="f">പടിഞ്ഞാറ് അതിര്</label><input type="text" data-d="west" /></div>
+        </div>
+        <div><label class="f">അളന്നവർ / സാക്ഷികൾ</label><input type="text" data-d="by" /></div>
+        <div><label class="f">കുറിപ്പുകൾ</label><textarea rows="3" data-d="notes" placeholder="ഉദാ: വടക്കേ അതിരിൽ കല്ല് കാണാനില്ല"></textarea></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= TAB 5: GPS ================= -->
+  <section id="tab-gps" class="tab">
+    <div class="card">
+      <h2>GPS ഉപയോഗിച്ച് ഏകദേശ അളവ്</h2>
+      <div class="msg warn">ഫോണിലെ GPS-ന് സാധാരണ 3–10 മീറ്റർ വരെ പിശക് വരാം. ചെറിയ പ്ലോട്ടുകൾക്ക് ടേപ്പ് അളവാണ് ശരി. ഇത് ഏകദേശ ആകൃതിക്കും വലിയ ഭൂമിക്കും മാത്രം ഉപയോഗിക്കുക.</div>
+      <p class="hint">ഓരോ മൂലയിലും ചെന്ന് നിന്ന്, ഫോൺ നെഞ്ചിന്റെ ഉയരത്തിൽ പിടിച്ച് "ഈ മൂല ചേർക്കുക" അമർത്തുക. ആപ്പ് ഏകദേശം 10 സെക്കൻഡ് GPS റീഡിംഗുകൾ എടുത്ത് ശരാശരി കാണും.</p>
+      <div class="btns">
+        <button type="button" class="btn pri" id="gpsAddBtn" onclick="gpsAddPoint()">📍 ഈ മൂല ചേർക്കുക</button>
+        <button type="button" class="btn" onclick="gpsUndo()">↶ അവസാനത്തേത് ഒഴിവാക്കുക</button>
+        <button type="button" class="btn warn" onclick="gpsClear()">എല്ലാം മായ്ക്കുക</button>
+      </div>
+      <div id="gpsStatus" class="hint" style="margin:10px 0 0"></div>
+    </div>
+    <div id="gpsResult"></div>
+  </section>
+
+  <!-- ================= TAB 6: MORE ================= -->
+  <section id="tab-more" class="tab">
+    <div class="card">
+      <h2>സേവ് ചെയ്ത പ്ലോട്ടുകൾ</h2>
+      <div class="btns" style="margin:8px 0">
+        <button type="button" class="btn pri sm" onclick="newPlot()">＋ പുതിയ പ്ലോട്ട്</button>
+        <button type="button" class="btn sm" onclick="savePlot()">💾 സേവ്</button>
+        <button type="button" class="btn sm" onclick="exportJSON()">⬇ ഫയലായി (.json)</button>
+        <label class="btn sm" style="cursor:pointer">⬆ ഫയൽ തുറക്കുക<input type="file" accept=".json,application/json" style="display:none" onchange="importJSON(this)" /></label>
+      </div>
+      <div id="savedList"></div>
+    </div>
+
+    <div class="card">
+      <h2>യൂണിറ്റ് കൺവെർട്ടർ</h2>
+      <div class="row c2">
+        <div><label class="f">വിസ്തീർണം</label><input type="number" inputmode="decimal" id="cvA" oninput="convArea()" placeholder="ഉദാ: 10" /></div>
+        <div><label class="f">യൂണിറ്റ്</label>
+          <select id="cvAU" onchange="convArea()">
+            <option value="cent">സെന്റ്</option><option value="sqm">ച.മീ</option><option value="are">ആർ</option>
+            <option value="ha">ഹെക്ടർ</option><option value="acre">ഏക്കർ</option><option value="sqft">ച.അടി</option>
+          </select>
+        </div>
+      </div>
+      <div id="cvAOut" style="margin-top:8px"></div>
+      <div class="row c2" style="margin-top:12px">
+        <div><label class="f">നീളം</label><input type="number" inputmode="decimal" id="cvL" oninput="convLen()" placeholder="ഉദാ: 66" /></div>
+        <div><label class="f">യൂണിറ്റ്</label>
+          <select id="cvLU" onchange="convLen()">
+            <option value="ft">അടി</option><option value="m">മീറ്റർ</option><option value="link">ലിങ്ക്</option><option value="chain">ചെയിൻ</option><option value="yard">വാര (yard)</option>
+          </select>
+        </div>
+      </div>
+      <div id="cvLOut" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <details class="guide" open>
+        <summary>എങ്ങനെ അളക്കാം? (ചുരുക്കം)</summary>
+        <ol>
+          <li>ഭൂമിയുടെ എല്ലാ മൂലകളും (അതിരുകല്ലുകൾ / വളവുകൾ) കണ്ടെത്തി A, B, C... എന്ന് ക്രമത്തിൽ പേരിടുക. ഒരേ ദിശയിൽ (ഉദാ: ഘടികാരദിശ) ചുറ്റി നടക്കുക.</li>
+          <li>AB, BC, CD... എന്നിങ്ങനെ ഓരോ അതിരിന്റെയും നേർനീളം ടേപ്പ് വലിച്ചുപിടിച്ച് അളക്കുക.</li>
+          <li>വശങ്ങളുടെ നീളം മാത്രം കൊണ്ട് ആകൃതി ഉറപ്പിക്കാൻ കഴിയില്ല. അതിനാൽ ഒരു മൂലയിൽ നിന്ന് മറ്റ് മൂലകളിലേക്ക് കോണോടുകോൺ (ഉദാ: AC, AD) അളക്കുക. ആപ്പ് ഏതൊക്കെ വേണമെന്ന് കാണിക്കും.</li>
+          <li>എല്ലാ മൂലകളും കാണാവുന്ന മൂല "കോണോടുകോൺ ഏത് മൂലയിൽ നിന്ന്" എന്നതിൽ തിരഞ്ഞെടുക്കുക.</li>
+          <li>ഭൂമി ചരിവിലാണെങ്കിൽ ടേപ്പ് തിരശ്ചീനമായി (നിരപ്പായി) പിടിച്ച് പടിപടിയായി അളക്കുക. ചരിവിലൂടെയുള്ള നീളം വിസ്തീർണം കൂട്ടിക്കാണിക്കും.</li>
+          <li>അതിര് വളഞ്ഞതാണെങ്കിൽ വളവിൽ ഇടയ്ക്കുള്ള പോയിന്റുകളും മൂലകളായി കണക്കാക്കുക.</li>
+          <li>അവസാനം ഒരു അധിക കോണോടുകോൺ അളന്ന് "ഫലം" പേജിലെ "പരിശോധനാ അളവ്" ഉപയോഗിച്ച് ഒത്തുനോക്കുക.</li>
+        </ol>
+      </details>
+    </div>
+    <p class="hint" style="text-align:center">ഡാറ്റ ഈ ഫോണിൽ മാത്രം സൂക്ഷിക്കുന്നു. പ്രധാന അളവുകൾ ".json" ഫയലായും സൂക്ഷിക്കുക.</p>
+  </section>
+</main>
+
+<div class="livebar" id="liveBar">അളവുകൾ നൽകുക</div>
+
+<nav class="tabbar">
+  <button type="button" data-tab="measure" class="active" onclick="showTab('measure')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-12 12 6-6 12z"/><path d="M9 5l2 4M13 7l1 2M17 9l1 2"/></svg>അളവ്</button>
+  <button type="button" data-tab="sketch" onclick="showTab('sketch')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18l3-12 10 2 3 9z"/><circle cx="4" cy="18" r="1.5"/><circle cx="7" cy="6" r="1.5"/><circle cx="17" cy="8" r="1.5"/><circle cx="20" cy="17" r="1.5"/></svg>സ്കെച്ച്</button>
+  <button type="button" data-tab="result" onclick="showTab('result')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>ഫലം</button>
+  <button type="button" data-tab="details" onclick="showTab('details')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg>വിവരം</button>
+  <button type="button" data-tab="gps" onclick="showTab('gps')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.5-7-12a7 7 0 0114 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>GPS</button>
+  <button type="button" data-tab="more" onclick="showTab('more')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>കൂടുതൽ</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+<div id="printArea"></div>
+
+<script>
+'use strict';
+// ============================================================================
+// Units & helpers
+// ============================================================================
+const LEN = { m: 1, ft: 0.3048, link: 0.201168, chain: 20.1168, yard: 0.9144 };
+const LEN_NAME = { m: 'മീ', ft: 'അടി', link: 'ലിങ്ക്', chain: 'ചെയിൻ', yard: 'വാര' };
+const SQM_PER = { sqm: 1, cent: 40.468564224, are: 100, ha: 10000, acre: 4046.8564224, sqft: 0.09290304 };
+const AREA_NAME = { sqm: 'ച.മീ', cent: 'സെന്റ്', are: 'ആർ', ha: 'ഹെക്ടർ', acre: 'ഏക്കർ', sqft: 'ച.അടി' };
+const STORE_CUR = 'bhoomi_alavu_current_v1';
+const STORE_LIST = 'bhoomi_alavu_plots_v1';
+
+const lbl = (i) => String.fromCharCode(65 + i);
+const num = (v) => { const x = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(x) ? x : NaN; };
+const fmt = (x, d = 2) => isFinite(x) ? x.toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d }) : '-';
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const mod = (a, n) => ((a % n) + n) % n;
+const dist = (p, q) => Math.hypot(p.x - q.x, p.y - q.y);
+
+function storeGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
+function storeSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
+
+function todayIso() {
+  const t = new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+}
+
+function blankState() {
+  return {
+    id: null, n: 4, unit: 'm', dir: 'cw', base: 0,
+    sides: [], diags: {}, flips: {},
+    bearing: '', showLen: true, showDiag: true, showTri: false, showGrid: false,
+    d: { name: '', owner: '', survey: '', village: '', date: todayIso(), north: '', east: '', south: '', west: '', by: '', notes: '' },
+    check: { a: 1, b: 3, len: '' },
+    gps: []
+  };
+}
+
+let S = Object.assign(blankState(), storeGet(STORE_CUR) || {});
+S.d = Object.assign(blankState().d, S.d || {});
+S.check = Object.assign(blankState().check, S.check || {});
+let R = null; // last computation
+
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+function persist() { storeSet(STORE_CUR, S); }
+
+// ============================================================================
+// Geometry: fan triangulation from base corner, then shoelace area
+// ============================================================================
+function diagTargets(n, k) {
+  const t = [];
+  for (let j = 2; j <= n - 2; j++) t.push(mod(k + j, n));
+  return t;
+}
+
+function compute() {
+  const n = S.n, k = mod(S.base, n), f = LEN[S.unit] || 1;
+  const side = (i) => num(S.sides[mod(i, n)]) * f;
+  const diag = (v) => num(S.diags[v]) * f;
+  const res = { n, k, P: new Array(n).fill(null), tris: [], errors: [], warnings: [], missing: [], ok: false, badSides: new Set(), badDiags: new Set() };
+
+  for (let i = 0; i < n; i++) if (!(side(i) > 0)) res.missing.push(`${lbl(i)}${lbl(mod(i + 1, n))}`);
+  diagTargets(n, k).forEach(v => { if (!(diag(v) > 0)) res.missing.push(`${lbl(k)}${lbl(v)}`); });
+  if (res.missing.length) return res;
+
+  const sign = S.dir === 'ccw' ? 1 : -1; // cw walk => next points fall to the right
+  res.P[k] = { x: 0, y: 0 };
+  res.P[mod(k + 1, n)] = { x: side(k), y: 0 };
+
+  for (let j = 1; j <= n - 2; j++) {
+    const a = mod(k + j, n), v = mod(k + j + 1, n);
+    const r1 = (j === n - 2) ? side(k - 1) : diag(v);   // k -> v
+    const r2 = side(a);                                  // a -> v
+    const Pk = res.P[k], Pa = res.P[a];
+    const d = dist(Pk, Pa);
+    const ux = (Pa.x - Pk.x) / d, uy = (Pa.y - Pk.y) / d;
+    const x = (d * d + r1 * r1 - r2 * r2) / (2 * d);
+    let h2 = r1 * r1 - x * x;
+    const tol = 1e-6 * Math.max(r1, r2, d) ** 2;
+    const tri = `${lbl(k)}-${lbl(a)}-${lbl(v)}`;
+    if (h2 < -tol) {
+      const longest = Math.max(d, r1, r2);
+      res.errors.push(`ത്രികോണം ${tri}: അളവുകൾ പൊരുത്തപ്പെടുന്നില്ല. ഏറ്റവും വലിയ വശം (${fmt(longest / f)} ${LEN_NAME[S.unit]}) മറ്റ് രണ്ട് വശങ്ങളുടെയും തുകയേക്കാൾ കൂടുതലാണ്. ഈ മൂന്ന് അളവുകൾ വീണ്ടും പരിശോധിക്കുക.`);
+      res.badSides.add(a); if (j === n - 2) res.badSides.add(mod(k - 1, n)); else res.badDiags.add(v);
+      if (j === 1) res.badSides.add(k); else res.badDiags.add(a);
+      return res;
+    }
+    h2 = Math.max(0, h2);
+    const h = Math.sqrt(h2);
+    const sgn = sign * (S.flips[v] ? -1 : 1);
+    res.P[v] = { x: Pk.x + ux * x - uy * h * sgn, y: Pk.y + uy * x + ux * h * sgn };
+    const s = (d + r1 + r2) / 2;
+    const heron = Math.sqrt(Math.max(0, s * (s - d) * (s - r1) * (s - r2)));
+    if (h < 0.02 * Math.max(d, r1)) res.warnings.push(`ത്രികോണം ${tri} വളരെ നേർത്തതാണ് (മൂന്ന് മൂലകളും ഏകദേശം ഒരേ വരിയിൽ). ചെറിയ അളവുപിശക് പോലും വിസ്തീർണത്തിൽ വലിയ മാറ്റം വരുത്തും. മറ്റൊരു മൂലയിൽ നിന്ന് കോണോടുകോൺ അളക്കുന്നത് നന്നായിരിക്കും.`);
+    res.tris.push({ k, a, v, sides: [d, r2, r1], area: heron });
+  }
+
+  // shoelace
+  let A2 = 0, per = 0;
+  for (let i = 0; i < n; i++) {
+    const p = res.P[i], q = res.P[mod(i + 1, n)];
+    A2 += p.x * q.y - q.x * p.y;
+    per += dist(p, q);
+  }
+  res.area = Math.abs(A2) / 2;
+  res.perimeter = per;
+  res.heronSum = res.tris.reduce((t, x) => t + x.area, 0);
+  if (selfIntersects(res.P)) {
+    res.warnings.unshift('സ്കെച്ചിലെ അതിരുകൾ പരസ്പരം മുറിച്ചുകടക്കുന്നു. "അകത്തേക്ക് വളഞ്ഞ മൂലകൾ" എന്നതിൽ ശരിയായ മൂല ടിക്ക് ചെയ്യുക, അല്ലെങ്കിൽ നടന്ന ദിശ / അളവുകൾ പരിശോധിക്കുക.');
+    res.selfX = true;
+  }
+  res.ok = true;
+  return res;
+}
+
+function segX(p1, p2, p3, p4) {
+  const d = (a, b, c) => (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+  const d1 = d(p3, p4, p1), d2 = d(p3, p4, p2), d3 = d(p1, p2, p3), d4 = d(p1, p2, p4);
+  return ((d1 > 1e-9 && d2 < -1e-9) || (d1 < -1e-9 && d2 > 1e-9)) && ((d3 > 1e-9 && d4 < -1e-9) || (d3 < -1e-9 && d4 > 1e-9));
+}
+function selfIntersects(P) {
+  const n = P.length;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    if (Math.abs(i - j) <= 1 || (i === 0 && j === n - 1)) continue;
+    if (segX(P[i], P[mod(i + 1, n)], P[j], P[mod(j + 1, n)])) return true;
+  }
+  return false;
+}
+
+function areaParts(sqm) {
+  sqm = Math.round(sqm * 10) / 10;
+  const ha = Math.floor(sqm / 10000);
+  const are = Math.floor((sqm - ha * 10000) / 100);
+  const m2 = sqm - ha * 10000 - are * 100;
+  return `${ha} ഹെ. ${String(are).padStart(2, '0')} ആർ ${fmt(m2, 1)} ച.മീ`;
+}
+
+// Rotation so that north is up (if A->B bearing known)
+function displayPoints(P) {
+  const b = num(S.bearing);
+  if (!isFinite(b) || !P[0] || !P[1]) return { pts: P, north: false };
+  const th = Math.atan2(P[1].y - P[0].y, P[1].x - P[0].x);
+  const want = (90 - b) * Math.PI / 180;
+  const r = want - th, c = Math.cos(r), s = Math.sin(r);
+  return { pts: P.map(p => ({ x: p.x * c - p.y * s, y: p.x * s + p.y * c })), north: true };
+}
+
+// ============================================================================
+// Sketch (SVG)
+// ============================================================================
+function niceStep(x) {
+  const p = Math.pow(10, Math.floor(Math.log10(x)));
+  const m = x / p;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+}
+
+function sketchSVG(res, opt) {
+  const W = opt.W || 1000, H = opt.H || 1000, pad = opt.pad || 110;
+  const font = "font-family=\"Noto Sans Malayalam, Manjari, Nirmala UI, sans-serif\"";
+  let out = `<rect x="0" y="0" width="${W}" height="${H}" fill="#ffffff"/>`;
+  if (!res || !res.ok) {
+    const msg = res && res.errors.length ? 'അളവുകളിൽ പൊരുത്തക്കേട് ഉണ്ട്' : (res && res.missing.length ? `ഇനി വേണ്ടത്: ${res.missing.slice(0, 6).join(', ')}${res.missing.length > 6 ? '...' : ''}` : 'അളവുകൾ നൽകുക');
+    out += `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="${opt.small ? 34 : 30}" fill="#64748b" ${font}>${esc(msg)}</text>`;
+    return out;
+  }
+  const f = LEN[S.unit] || 1;
+  const { pts, north } = displayPoints(res.P);
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+  const bw = Math.max(maxX - minX, 1e-6), bh = Math.max(maxY - minY, 1e-6);
+  const topPad = opt.title ? pad + 50 : pad;
+  const botPad = pad + 40;
+  const sc = Math.min((W - 2 * pad) / bw, (H - topPad - botPad) / bh);
+  const ox = (W - bw * sc) / 2, oy = topPad + (H - topPad - botPad - bh * sc) / 2;
+  const T = (p) => ({ x: ox + (p.x - minX) * sc, y: oy + (maxY - p.y) * sc });
+  const Q = pts.map(T);
+  const cx = Q.reduce((a, p) => a + p.x, 0) / Q.length, cy = Q.reduce((a, p) => a + p.y, 0) / Q.length;
+  const fs = opt.small ? 30 : 34;
+
+  if (opt.title) {
+    out += `<text x="${W / 2}" y="50" text-anchor="middle" font-size="38" font-weight="700" fill="#022c22" ${font}>${esc(S.d.name || 'ഭൂമിയുടെ സ്കെച്ച്')}</text>`;
+    const sub = [S.d.survey ? `സർവ്വേ: ${S.d.survey}` : '', S.d.village ? `വില്ലേജ്: ${S.d.village}` : '', `വിസ്തീർണം: ${fmt(res.area / SQM_PER.cent)} സെന്റ് (${fmt(res.area)} ച.മീ)`].filter(Boolean).join('  |  ');
+    out += `<text x="${W / 2}" y="92" text-anchor="middle" font-size="25" fill="#334155" ${font}>${esc(sub)}</text>`;
+  }
+
+  if (S.showGrid) {
+    const st = niceStep((Math.max(bw, bh)) / 8) * sc;
+    let g = '';
+    for (let x = ox % st; x < W; x += st) g += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="#e2e8f0" stroke-width="1"/>`;
+    for (let y = oy % st; y < H; y += st) g += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#e2e8f0" stroke-width="1"/>`;
+    out += g;
+  }
+
+  // triangles fill (subtle) + diagonals
+  out += `<polygon points="${Q.map(p => `${p.x},${p.y}`).join(' ')}" fill="#d1fae5" fill-opacity="0.55" stroke="none"/>`;
+  if (S.showDiag) {
+    diagTargets(res.n, res.k).forEach(v => {
+      const a = Q[res.k], b = Q[v];
+      out += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#7c3aed" stroke-width="2.5" stroke-dasharray="10 7"/>`;
+      if (S.showLen) {
+        const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+        out += `<text x="${mx}" y="${my - 8}" text-anchor="middle" font-size="${fs - 4}" fill="#6d28d9" font-weight="600" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${fmt(num(S.diags[v]))}</text>`;
+      }
+    });
+  }
+  if (S.showTri) {
+    res.tris.forEach((t, i) => {
+      const a = Q[t.k], b = Q[t.a], c = Q[t.v];
+      out += `<text x="${(a.x + b.x + c.x) / 3}" y="${(a.y + b.y + c.y) / 3}" text-anchor="middle" font-size="${fs - 6}" fill="#065f46" font-weight="700" stroke="#fff" stroke-width="5" paint-order="stroke" ${font}>T${i + 1}: ${fmt(t.area, 1)} m²</text>`;
+    });
+  }
+  out += `<polygon points="${Q.map(p => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="#022c22" stroke-width="4" stroke-linejoin="round"/>`;
+
+  // side lengths
+  if (S.showLen) {
+    for (let i = 0; i < res.n; i++) {
+      const a = Q[i], b = Q[mod(i + 1, res.n)];
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      let nx = -(b.y - a.y), ny = b.x - a.x; const L = Math.hypot(nx, ny) || 1; nx /= L; ny /= L;
+      if ((mx + nx - cx) ** 2 + (my + ny - cy) ** 2 < (mx - cx) ** 2 + (my - cy) ** 2) { nx = -nx; ny = -ny; }
+      const off = fs * 1.05;
+      out += `<text x="${mx + nx * off}" y="${my + ny * off + fs * 0.35}" text-anchor="middle" font-size="${fs}" font-weight="700" fill="#0f172a" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${fmt(num(S.sides[i]))}</text>`;
+    }
+  }
+  // vertices
+  Q.forEach((p, i) => {
+    let dx = p.x - cx, dy = p.y - cy; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+    out += `<circle cx="${p.x}" cy="${p.y}" r="${opt.small ? 10 : 8}" fill="${i === res.k ? '#7c3aed' : '#047857'}" stroke="#fff" stroke-width="3"/>`;
+    out += `<text x="${p.x + dx * fs * 1.25}" y="${p.y + dy * fs * 1.25 + fs * 0.38}" text-anchor="middle" font-size="${fs + 6}" font-weight="800" fill="#047857" stroke="#fff" stroke-width="6" paint-order="stroke" ${font}>${lbl(i)}</text>`;
+  });
+
+  // scale bar
+  const realW = (W - 2 * pad) / sc / f;
+  const step = niceStep(realW / 4);
+  const px = step * f * sc;
+  const sx = 30, sy = H - 34;
+  out += `<line x1="${sx}" y1="${sy}" x2="${sx + px}" y2="${sy}" stroke="#0f172a" stroke-width="4"/>`;
+  out += `<line x1="${sx}" y1="${sy - 9}" x2="${sx}" y2="${sy + 9}" stroke="#0f172a" stroke-width="3"/><line x1="${sx + px}" y1="${sy - 9}" x2="${sx + px}" y2="${sy + 9}" stroke="#0f172a" stroke-width="3"/>`;
+  out += `<text x="${sx + px / 2}" y="${sy - 14}" text-anchor="middle" font-size="${opt.small ? 26 : 28}" fill="#0f172a" ${font}>${fmt(step, step < 1 ? 2 : 0)} ${LEN_NAME[S.unit]}</text>`;
+
+  // north arrow + boundaries
+  if (north) {
+    const nx = W - 52, ny = 26 + (opt.title ? 90 : 0);
+    out += `<polygon points="${nx},${ny} ${nx - 15},${ny + 46} ${nx},${ny + 36} ${nx + 15},${ny + 46}" fill="#0f172a"/>`;
+    out += `<text x="${nx}" y="${ny + 74}" text-anchor="middle" font-size="22" font-weight="800" fill="#0f172a" ${font}>N</text>`;
+    if (!opt.small) {
+      const B = (t, x, y, anchor, rot) => t ? `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="25" fill="#334155" ${rot ? `transform="rotate(${rot} ${x} ${y})"` : ''} ${font}>${esc(t)}</text>` : '';
+      out += B(S.d.north ? `വടക്ക്: ${S.d.north}` : '', W / 2, topPad - 34, 'middle');
+      out += B(S.d.south ? `തെക്ക്: ${S.d.south}` : '', W / 2, H - 70, 'middle');
+      out += B(S.d.west ? `പടിഞ്ഞാറ്: ${S.d.west}` : '', 30, H / 2, 'middle', -90);
+      out += B(S.d.east ? `കിഴക്ക്: ${S.d.east}` : '', W - 30, H / 2, 'middle', 90);
+    }
+  } else if (!opt.small) {
+    out += `<text x="${W - 20}" y="${H - 26}" text-anchor="end" font-size="23" fill="#94a3b8" ${font}>വടക്ക് ദിശ നൽകിയിട്ടില്ല</text>`;
+  }
+  return out;
+}
+
+// ============================================================================
+// Rendering
+// ============================================================================
+function renderMeasure() {
+  const n = S.n;
+  document.getElementById('nVal').textContent = n;
+  document.getElementById('nHint').textContent = `${n} വശങ്ങൾ, ${Math.max(0, n - 3)} കോണോടുകോൺ`;
+  document.getElementById('unitSel').value = S.unit;
+  document.getElementById('dirSel').value = S.dir;
+  const bs = document.getElementById('baseSel');
+  bs.innerHTML = Array.from({ length: n }, (_, i) => `<option value="${i}">${lbl(i)}</option>`).join('');
+  S.base = mod(S.base, n);
+  bs.value = S.base;
+
+  const u = LEN_NAME[S.unit];
+  document.getElementById('sideInputs').innerHTML = Array.from({ length: n }, (_, i) => `
+    <div class="mcell" id="sc-${i}">
+      <span class="tag">${lbl(i)}${lbl(mod(i + 1, n))}</span>
+      <input type="number" inputmode="decimal" step="any" min="0" placeholder="${u}" value="${esc(S.sides[i] ?? '')}" oninput="setSide(${i}, this.value)" enterkeyhint="next" />
+    </div>`).join('');
+
+  const tg = diagTargets(n, S.base);
+  document.getElementById('diagCard').style.display = tg.length ? '' : 'none';
+  document.getElementById('flipCard').style.display = n >= 4 ? '' : 'none';
+  document.getElementById('diagHint').textContent = tg.length
+    ? `${lbl(S.base)} മൂലയിൽ നിന്ന് ${tg.map(v => lbl(v)).join(', ')} എന്നീ മൂലകളിലേക്കുള്ള നേർനീളം അളക്കുക. (ആ മൂലയിൽ നിന്ന് കാണാനാകുന്നില്ലെങ്കിൽ മുകളിൽ മറ്റൊരു മൂല തിരഞ്ഞെടുക്കുക.)`
+    : '';
+  document.getElementById('diagInputs').innerHTML = tg.map(v => `
+    <div class="mcell diag" id="dc-${v}">
+      <span class="tag">${lbl(S.base)}${lbl(v)}</span>
+      <input type="number" inputmode="decimal" step="any" min="0" placeholder="${u}" value="${esc(S.diags[v] ?? '')}" oninput="setDiag(${v}, this.value)" enterkeyhint="next" />
+    </div>`).join('');
+  const flippable = [];
+  for (let j = 1; j <= n - 2; j++) flippable.push(mod(S.base + j + 1, n));
+  document.getElementById('flipChips').innerHTML = flippable.map(v => `
+    <label class="chip"><input type="checkbox" ${S.flips[v] ? 'checked' : ''} onchange="setFlip(${v}, this.checked)" /> ${lbl(v)} മൂല</label>`).join('');
+  update();
+}
+
+function update() {
+  R = compute();
+  // highlight bad inputs
+  document.querySelectorAll('.mcell').forEach(el => el.classList.remove('bad'));
+  R.badSides.forEach(i => { const el = document.getElementById(`sc-${i}`); if (el) el.classList.add('bad'); });
+  R.badDiags.forEach(v => { const el = document.getElementById(`dc-${v}`); if (el) el.classList.add('bad'); });
+
+  document.getElementById('miniSketch').innerHTML = sketchSVG(R, { W: 1000, H: 560, pad: 70, small: true });
+  document.getElementById('bigSketch').innerHTML = sketchSVG(R, { W: 1000, H: 1000, pad: 110, title: true });
+
+  const msgs = [];
+  R.errors.forEach(e => msgs.push(`<div class="msg err">⚠ ${esc(e)}</div>`));
+  if (R.ok) R.warnings.forEach(w => msgs.push(`<div class="msg warn">${esc(w)}</div>`));
+  if (!R.ok && !R.errors.length && R.missing.length) msgs.push(`<div class="msg info">ഇനി നൽകേണ്ട അളവുകൾ: <b>${R.missing.join(', ')}</b></div>`);
+  document.getElementById('measureMsgs').innerHTML = msgs.join('');
+
+  const bar = document.getElementById('liveBar');
+  if (R.ok) bar.innerHTML = `${fmt(R.area / SQM_PER.cent)} സെന്റ് <span class="dim">| ${fmt(R.area)} ച.മീ | ${fmt(R.area / SQM_PER.acre, 3)} ഏക്കർ</span>`;
+  else if (R.errors.length) bar.innerHTML = `⚠ അളവുകളിൽ പൊരുത്തക്കേട്`;
+  else bar.innerHTML = `<span class="dim">ഇനി വേണ്ടത്: ${R.missing.length} അളവുകൾ</span>`;
+
+  document.getElementById('hdrName').textContent = S.d.name || 'പുതിയ പ്ലോട്ട്';
+  renderResult();
+  persist();
+}
+
+function renderResult() {
+  const box = document.getElementById('resultBox');
+  if (!R || !R.ok) {
+    box.innerHTML = `<div class="card"><div class="msg ${R && R.errors.length ? 'err' : 'info'}">${R && R.errors.length ? esc(R.errors[0]) : 'എല്ലാ അളവുകളും നൽകിയാൽ ഫലം ഇവിടെ കാണാം.'}</div></div>`;
+    renderCheck();
+    return;
+  }
+  const a = R.area, f = LEN[S.unit] || 1;
+  const rows = ['cent', 'sqm', 'are', 'ha', 'acre', 'sqft'].map(u => `<tr><th>${AREA_NAME[u]}</th><td class="n"><b>${fmt(a / SQM_PER[u], u === 'ha' || u === 'acre' ? 4 : 2)}</b></td></tr>`).join('');
+  const triRows = R.tris.map((t, i) => `<tr><td>T${i + 1}: ${lbl(t.k)}-${lbl(t.a)}-${lbl(t.v)}</td><td class="n">${t.sides.map(s => fmt(s / f)).join(' / ')}</td><td class="n">${fmt(t.area)}</td></tr>`).join('');
+  const diff = Math.abs(R.heronSum - R.area);
+  box.innerHTML = `
+    <div class="card">
+      <div class="bigsub">ആകെ വിസ്തീർണം</div>
+      <div class="big">${fmt(a / SQM_PER.cent)} സെന്റ്</div>
+      <div class="bigsub">${fmt(a)} ച.മീ &nbsp;•&nbsp; ${areaParts(a)}</div>
+      <div class="bigsub" style="margin-top:4px">ചുറ്റളവ്: ${fmt(R.perimeter / f)} ${LEN_NAME[S.unit]}${S.unit !== 'm' ? ` (${fmt(R.perimeter)} മീ)` : ''}</div>
+    </div>
+    ${R.warnings.map(w => `<div class="msg warn">${esc(w)}</div>`).join('')}
+    <div class="card">
+      <h2>എല്ലാ യൂണിറ്റിലും</h2>
+      <table class="t">${rows}</table>
+    </div>
+    <div class="card">
+      <h2>ത്രികോണങ്ങൾ (ഹെറോൺ സൂത്രവാക്യം)</h2>
+      <p class="hint">ഭൂമിയെ ${lbl(R.k)} മൂലയിൽ നിന്ന് ത്രികോണങ്ങളായി ഭാഗിച്ച് കണക്കാക്കിയത്. വശങ്ങൾ ${LEN_NAME[S.unit]}-ൽ, വിസ്തീർണം ച.മീ-ൽ.</p>
+      <table class="t"><tr><th>ത്രികോണം</th><th>വശങ്ങൾ</th><th>ച.മീ</th></tr>${triRows}
+        <tr><th colspan="2">ത്രികോണങ്ങളുടെ തുക</th><td class="n"><b>${fmt(R.heronSum)}</b></td></tr></table>
+      ${diff > 0.01 * a ? `<div class="msg info" style="margin-top:8px">അകത്തേക്ക് വളഞ്ഞ മൂല ഉള്ളതിനാൽ ത്രികോണങ്ങളുടെ തുകയും യഥാർത്ഥ വിസ്തീർണവും വ്യത്യാസപ്പെടുന്നു. മുകളിൽ കാണിച്ച ആകെ വിസ്തീർണമാണ് (കോർഡിനേറ്റ് രീതിയിൽ കണക്കാക്കിയത്) ശരി.</div>` : ''}
+    </div>`;
+  renderCheck();
+}
+
+function renderCheck() {
+  const n = S.n;
+  const opts = Array.from({ length: n }, (_, i) => `<option value="${i}">${lbl(i)}</option>`).join('');
+  const a = document.getElementById('chkA'), b = document.getElementById('chkB'), l = document.getElementById('chkLen');
+  if (a.options.length !== n) { a.innerHTML = opts; b.innerHTML = opts; }
+  a.value = mod(S.check.a, n); b.value = mod(S.check.b, n);
+  if (document.activeElement !== l) l.value = S.check.len;
+  const out = document.getElementById('chkOut');
+  if (!R || !R.ok) { out.innerHTML = ''; return; }
+  const ia = mod(S.check.a, n), ib = mod(S.check.b, n);
+  if (ia === ib) { out.innerHTML = '<div class="msg info">രണ്ട് വ്യത്യസ്ത മൂലകൾ തിരഞ്ഞെടുക്കുക.</div>'; return; }
+  const f = LEN[S.unit] || 1;
+  const calc = dist(R.P[ia], R.P[ib]) / f;
+  const meas = num(S.check.len);
+  let html = `<div class="msg info">സ്കെച്ച് പ്രകാരം ${lbl(ia)}${lbl(ib)} = <b>${fmt(calc)} ${LEN_NAME[S.unit]}</b></div>`;
+  if (meas > 0) {
+    const d = meas - calc, pct = Math.abs(d) / calc * 100;
+    const cls = pct <= 1 ? 'ok' : pct <= 3 ? 'warn' : 'err';
+    const verdict = pct <= 1 ? 'നല്ല കൃത്യത ✓' : pct <= 3 ? 'ചെറിയ വ്യത്യാസം - അളവുകൾ ഒന്നുകൂടി നോക്കുന്നത് നല്ലത്' : 'വലിയ വ്യത്യാസം - ഏതെങ്കിലും അളവിൽ പിശകുണ്ട്, അല്ലെങ്കിൽ ഏതെങ്കിലും മൂല മറിക്കേണ്ടതുണ്ട്';
+    html += `<div class="msg ${cls}">അളന്നത് ${fmt(meas)} - വ്യത്യാസം ${d >= 0 ? '+' : ''}${fmt(d)} ${LEN_NAME[S.unit]} (${fmt(pct, 1)}%) - ${verdict}</div>`;
+  }
+  out.innerHTML = html;
+}
+
+function renderDetails() {
+  document.querySelectorAll('[data-d]').forEach(el => { el.value = S.d[el.dataset.d] ?? ''; });
+}
+
+function renderSketchOpts() {
+  document.getElementById('optLen').checked = S.showLen;
+  document.getElementById('optDiag').checked = S.showDiag;
+  document.getElementById('optTri').checked = S.showTri;
+  document.getElementById('optGrid').checked = S.showGrid;
+  document.getElementById('bearingInp').value = S.bearing;
+}
+
+// ============================================================================
+// Input handlers
+// ============================================================================
+function changeN(d) {
+  const n = Math.min(26, Math.max(3, S.n + d));
+  if (n === S.n) return;
+  S.n = n;
+  S.sides = S.sides.slice(0, n);
+  const keep = new Set(diagTargets(n, mod(S.base, n)));
+  Object.keys(S.diags).forEach(k => { if (!keep.has(+k)) delete S.diags[k]; });
+  S.flips = {};
+  renderMeasure();
+}
+function setField(k, v, light) {
+  if (k === 'base') { S.base = v; S.diags = {}; S.flips = {}; renderMeasure(); return; }
+  S[k] = v;
+  if (k === 'unit') renderMeasure(); else update();
+}
+function setSide(i, v) { S.sides[i] = v; update(); }
+function setDiag(v, val) { S.diags[v] = val; update(); }
+function setFlip(v, on) { if (on) S.flips[v] = true; else delete S.flips[v]; update(); }
+function setOpt(k, v) { S[k] = v; update(); }
+function setCheck() {
+  S.check.a = parseInt(document.getElementById('chkA').value, 10);
+  S.check.b = parseInt(document.getElementById('chkB').value, 10);
+  S.check.len = document.getElementById('chkLen').value;
+  renderCheck(); persist();
+}
+document.querySelectorAll('[data-d]').forEach(el => el.addEventListener('input', () => { S.d[el.dataset.d] = el.value; update(); }));
+
+function showTab(t) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.toggle('active', el.id === `tab-${t}`));
+  document.querySelectorAll('.tabbar button').forEach(el => el.classList.toggle('active', el.dataset.tab === t));
+  if (t === 'more') renderSaved();
+  if (t === 'gps') renderGPS();
+  window.scrollTo(0, 0);
+}
+
+// ============================================================================
+// Compass
+// ============================================================================
+async function readCompass() {
+  const st = document.getElementById('compassStatus');
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      const p = await DeviceOrientationEvent.requestPermission();
+      if (p !== 'granted') { st.textContent = 'കോമ്പസ് അനുമതി ലഭിച്ചില്ല.'; return; }
+    }
+  } catch (e) { /* ignore */ }
+  const reads = [];
+  const handler = (e) => {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number') h = e.webkitCompassHeading;
+    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha;
+    if (h !== null && isFinite(h)) reads.push(h);
+  };
+  window.addEventListener('deviceorientationabsolute', handler);
+  window.addEventListener('deviceorientation', handler);
+  st.textContent = 'ഫോൺ A-യിൽ നിന്ന് B-യ്ക്ക് നേരെ നിരപ്പായി പിടിക്കുക... (2 സെക്കൻഡ്)';
+  setTimeout(() => {
+    window.removeEventListener('deviceorientationabsolute', handler);
+    window.removeEventListener('deviceorientation', handler);
+    if (!reads.length) { st.textContent = 'ഈ ഫോണിൽ / ബ്രൗസറിൽ കോമ്പസ് ലഭ്യമല്ല. ഡിഗ്രി നേരിട്ട് ടൈപ്പ് ചെയ്യുക.'; return; }
+    let sx = 0, sy = 0;
+    reads.forEach(h => { sx += Math.sin(h * Math.PI / 180); sy += Math.cos(h * Math.PI / 180); });
+    const avg = mod(Math.round(Math.atan2(sx, sy) * 180 / Math.PI), 360);
+    S.bearing = String(avg);
+    document.getElementById('bearingInp').value = S.bearing;
+    st.textContent = `A→B ദിശ: ${avg}° (ഫോൺ കോമ്പസിന് ±10° വരെ പിശക് വരാം; ഇരുമ്പ് / വാഹനങ്ങളിൽ നിന്ന് മാറി നിൽക്കുക)`;
+    update();
+  }, 2000);
+}
+
+// ============================================================================
+// Export: PNG / share / print
+// ============================================================================
+function fullSVGString() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">${sketchSVG(R, { W: 1000, H: 1000, pad: 110, title: true })}</svg>`;
+}
+function svgToPngBlob() {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(new Blob([fullSVGString()], { type: 'image/svg+xml;charset=utf-8' }));
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = 2000; c.height = 2000;
+      const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 2000, 2000); g.drawImage(img, 0, 0, 2000, 2000);
+      URL.revokeObjectURL(url);
+      c.toBlob(b => b ? resolve(b) : reject(new Error('png')), 'image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+function fileBase() { return (S.d.name || 'bhoomi_sketch').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 60); }
+function downloadBlob(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
+async function downloadPNG() {
+  if (!R || !R.ok) { toast('ആദ്യം എല്ലാ അളവുകളും നൽകുക'); return; }
+  try { downloadBlob(await svgToPngBlob(), `${fileBase()}.png`); toast('ചിത്രം ഡൗൺലോഡ് ചെയ്തു'); }
+  catch (e) { toast('ചിത്രം ഉണ്ടാക്കാൻ സാധിച്ചില്ല'); }
+}
+async function sharePNG() {
+  if (!R || !R.ok) { toast('ആദ്യം എല്ലാ അളവുകളും നൽകുക'); return; }
+  try {
+    const blob = await svgToPngBlob();
+    const file = new File([blob], `${fileBase()}.png`, { type: 'image/png' });
+    const text = `${S.d.name || 'ഭൂമി'}: ${fmt(R.area / SQM_PER.cent)} സെന്റ് (${fmt(R.area)} ച.മീ)`;
+    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: 'ഭൂമി സ്കെച്ച്', text });
+    else { downloadBlob(blob, file.name); toast('ഷെയർ ലഭ്യമല്ല - ചിത്രം ഡൗൺലോഡ് ചെയ്തു'); }
+  } catch (e) { if (e && e.name !== 'AbortError') toast('ഷെയർ ചെയ്യാൻ സാധിച്ചില്ല'); }
+}
+function printReport() {
+  if (!R || !R.ok) { toast('ആദ്യം എല്ലാ അളവുകളും നൽകുക'); return; }
+  const n = S.n, u = LEN_NAME[S.unit], d = S.d;
+  const sideRows = Array.from({ length: n }, (_, i) => `<tr><td>${lbl(i)}${lbl(mod(i + 1, n))}</td><td class="n">${fmt(num(S.sides[i]))}</td></tr>`).join('');
+  const diagRows = diagTargets(n, R.k).map(v => `<tr><td>${lbl(R.k)}${lbl(v)} (കോണോടുകോൺ)</td><td class="n">${fmt(num(S.diags[v]))}</td></tr>`).join('');
+  document.getElementById('printArea').innerHTML = `
+    <h1>${esc(d.name || 'ഭൂമിയുടെ അളവും സ്കെച്ചും')}</h1>
+    <div class="sub">${[d.village && `വില്ലേജ്: ${esc(d.village)}`, d.survey && `സർവ്വേ നം: ${esc(d.survey)}`, d.date && `തീയതി: ${esc(d.date)}`].filter(Boolean).join(' &nbsp;|&nbsp; ')}</div>
+    <table class="t"><tr><th style="width:30%">ഉടമ / കൈവശക്കാരൻ</th><td>${esc(d.owner)}</td></tr>
+      <tr><th>വിസ്തീർണം</th><td><b>${fmt(R.area / SQM_PER.cent)} സെന്റ്</b> = ${fmt(R.area)} ച.മീ = ${areaParts(R.area)} = ${fmt(R.area / SQM_PER.acre, 4)} ഏക്കർ</td></tr>
+      <tr><th>ചുറ്റളവ്</th><td>${fmt(R.perimeter / (LEN[S.unit] || 1))} ${u}</td></tr>
+      <tr><th>അതിരുകൾ</th><td>വടക്ക്: ${esc(d.north || '-')}; കിഴക്ക്: ${esc(d.east || '-')}; തെക്ക്: ${esc(d.south || '-')}; പടിഞ്ഞാറ്: ${esc(d.west || '-')}</td></tr></table>
+    <div class="sk avoid"><svg viewBox="0 0 1000 1000">${sketchSVG(R, { W: 1000, H: 1000, pad: 110, title: false })}</svg></div>
+    <div class="avoid"><table class="t"><tr><th>അളവ്</th><th style="width:30%">നീളം (${u})</th></tr>${sideRows}${diagRows}</table></div>
+    ${d.notes ? `<p><b>കുറിപ്പുകൾ:</b> ${esc(d.notes)}</p>` : ''}
+    <p style="font-size:11px">സ്കെച്ച് അളവുകൾക്ക് ആനുപാതികമായി (to scale) വരച്ചത്. ${S.bearing !== '' ? `A→B ദിശ ${esc(S.bearing)}°.` : 'വടക്ക് ദിശ രേഖപ്പെടുത്തിയിട്ടില്ല.'}</p>
+    <div class="sign avoid"><div>അളന്നവർ: ${esc(d.by || '..............................')}</div><div>ഒപ്പ്: ..............................</div></div>`;
+  setTimeout(() => window.print(), 60);
+}
+
+// ============================================================================
+// Save / load / export
+// ============================================================================
+function savedList() { return storeGet(STORE_LIST) || []; }
+function savePlot() {
+  if (!S.id) S.id = 'p' + Date.now();
+  S.savedAt = new Date().toISOString();
+  S.areaSqm = R && R.ok ? R.area : null;
+  const list = savedList().filter(p => p.id !== S.id);
+  list.unshift(JSON.parse(JSON.stringify(S)));
+  if (!storeSet(STORE_LIST, list.slice(0, 100))) { toast('സേവ് ചെയ്യാനായില്ല - .json ഫയലായി ഡൗൺലോഡ് ചെയ്യുക'); return; }
+  persist();
+  toast(`"${S.d.name || 'പേരില്ലാത്ത പ്ലോട്ട്'}" സേവ് ചെയ്തു`);
+  if (document.getElementById('tab-more').classList.contains('active')) renderSaved();
+}
+function renderSaved() {
+  const list = savedList();
+  const el = document.getElementById('savedList');
+  if (!list.length) { el.innerHTML = '<p class="hint">ഇതുവരെ ഒന്നും സേവ് ചെയ്തിട്ടില്ല.</p>'; return; }
+  el.innerHTML = list.map((p, i) => `
+    <div class="list-item">
+      <div>
+        <div style="font-weight:700">${esc(p.d && p.d.name || 'പേരില്ലാത്ത പ്ലോട്ട്')} ${p.id === S.id ? '<span class="pill">തുറന്നത്</span>' : ''}</div>
+        <div class="meta">${p.areaSqm ? `${fmt(p.areaSqm / SQM_PER.cent)} സെന്റ് • ` : ''}${p.n} മൂലകൾ • ${p.savedAt ? new Date(p.savedAt).toLocaleString('en-IN') : ''}</div>
+      </div>
+      <div class="btns">
+        <button type="button" class="btn sm" onclick="openSaved(${i})">തുറക്കുക</button>
+        <button type="button" class="btn sm warn" onclick="deleteSaved(${i})">✕</button>
+      </div>
+    </div>`).join('');
+}
+function loadState(obj) {
+  const b = blankState();
+  S = Object.assign(b, obj || {});
+  S.d = Object.assign(b.d, (obj && obj.d) || {});
+  S.check = Object.assign(b.check, (obj && obj.check) || {});
+  S.sides = Array.isArray(S.sides) ? S.sides : [];
+  S.diags = S.diags || {}; S.flips = S.flips || {}; S.gps = Array.isArray(S.gps) ? S.gps : [];
+  renderAll();
+}
+function openSaved(i) { const p = savedList()[i]; if (!p) return; loadState(JSON.parse(JSON.stringify(p))); showTab('measure'); toast('പ്ലോട്ട് തുറന്നു'); }
+function deleteSaved(i) {
+  const list = savedList(); const p = list[i]; if (!p) return;
+  if (!confirm(`"${(p.d && p.d.name) || 'പേരില്ലാത്ത പ്ലോട്ട്'}" ഒഴിവാക്കണോ?`)) return;
+  list.splice(i, 1); storeSet(STORE_LIST, list);
+  if (p.id === S.id) S.id = null;
+  renderSaved();
+}
+function newPlot() {
+  if (!confirm('പുതിയ പ്ലോട്ട് തുടങ്ങണോ? (ഇപ്പോഴത്തേത് സേവ് ചെയ്തിട്ടില്ലെങ്കിൽ നഷ്ടപ്പെടും)')) return;
+  loadState(blankState()); showTab('measure');
+}
+function exportJSON() {
+  const blob = new Blob([JSON.stringify(Object.assign({ app: 'bhoomi-alavu', version: 1 }, S), null, 2)], { type: 'application/json' });
+  downloadBlob(blob, `${fileBase()}.json`);
+}
+function importJSON(inp) {
+  const file = inp.files && inp.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { const o = JSON.parse(r.result); if (!o || !o.n) throw new Error('bad'); loadState(o); showTab('measure'); toast('ഫയൽ തുറന്നു'); }
+    catch (e) { toast('ഈ ഫയൽ തുറക്കാനാവില്ല'); }
+    inp.value = '';
+  };
+  r.readAsText(file);
+}
+
+// ============================================================================
+// Converter
+// ============================================================================
+function convArea() {
+  const v = num(document.getElementById('cvA').value), u = document.getElementById('cvAU').value;
+  const out = document.getElementById('cvAOut');
+  if (!(v >= 0)) { out.innerHTML = ''; return; }
+  const sqm = v * SQM_PER[u];
+  out.innerHTML = `<table class="t">${Object.keys(SQM_PER).map(k => `<tr><th>${AREA_NAME[k]}</th><td class="n">${fmt(sqm / SQM_PER[k], k === 'ha' || k === 'acre' ? 4 : 2)}</td></tr>`).join('')}<tr><th>ഹെ-ആർ-ച.മീ</th><td class="n">${areaParts(sqm)}</td></tr></table>`;
+}
+function convLen() {
+  const v = num(document.getElementById('cvL').value), u = document.getElementById('cvLU').value;
+  const out = document.getElementById('cvLOut');
+  if (!(v >= 0)) { out.innerHTML = ''; return; }
+  const m = v * LEN[u];
+  out.innerHTML = `<table class="t">${Object.keys(LEN).map(k => `<tr><th>${LEN_NAME[k]}</th><td class="n">${fmt(m / LEN[k], 3)}</td></tr>`).join('')}</table>`;
+}
+
+// ============================================================================
+// GPS walk mode
+// ============================================================================
+let gpsBusy = false;
+function gpsLocal(points) {
+  const R0 = 6371008.8;
+  const lat0 = points.reduce((a, p) => a + p.lat, 0) / points.length;
+  const lon0 = points.reduce((a, p) => a + p.lon, 0) / points.length;
+  const c = Math.cos(lat0 * Math.PI / 180);
+  return points.map(p => ({ x: (p.lon - lon0) * Math.PI / 180 * R0 * c, y: (p.lat - lat0) * Math.PI / 180 * R0 }));
+}
+function gpsAddPoint() {
+  const st = document.getElementById('gpsStatus');
+  if (!navigator.geolocation) { st.textContent = 'ഈ ബ്രൗസറിൽ GPS ലഭ്യമല്ല.'; return; }
+  if (gpsBusy) return;
+  gpsBusy = true;
+  const btn = document.getElementById('gpsAddBtn'); btn.disabled = true;
+  const reads = [];
+  const started = Date.now();
+  const finish = () => {
+    navigator.geolocation.clearWatch(wid);
+    gpsBusy = false; btn.disabled = false;
+    if (!reads.length) { st.textContent = 'GPS ലഭിച്ചില്ല. ലൊക്കേഷൻ ഓൺ ആണെന്നും ഈ പേജിന് അനുമതി ഉണ്ടെന്നും ഉറപ്പാക്കുക; തുറസ്സായ സ്ഥലത്ത് നിൽക്കുക.'; return; }
+    let w = 0, la = 0, lo = 0, best = Infinity;
+    reads.forEach(r => { const wt = 1 / Math.max(r.acc, 1) ** 2; w += wt; la += r.lat * wt; lo += r.lon * wt; best = Math.min(best, r.acc); });
+    const pt = { lat: la / w, lon: lo / w, acc: best, n: reads.length };
+    S.gps.push(pt);
+    persist();
+    st.textContent = `${lbl(S.gps.length - 1)} ചേർത്തു - ${reads.length} റീഡിംഗ്, കൃത്യത ±${fmt(best, 1)} മീ`;
+    renderGPS();
+  };
+  const wid = navigator.geolocation.watchPosition(pos => {
+    reads.push({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy || 50 });
+    st.textContent = `${lbl(S.gps.length)} മൂല: റീഡിംഗ് ${reads.length}, ഇപ്പോഴത്തെ കൃത്യത ±${fmt(pos.coords.accuracy, 1)} മീ...`;
+    if (reads.length >= 12 || Date.now() - started > 10000) finish();
+  }, err => {
+    if (!reads.length) { navigator.geolocation.clearWatch(wid); gpsBusy = false; btn.disabled = false; st.textContent = `GPS പിശക്: ${err.message || 'അനുമതി ഇല്ല'}`; }
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  st.textContent = 'GPS തിരയുന്നു... അനങ്ങാതെ നിൽക്കുക';
+  setTimeout(() => { if (gpsBusy && reads.length) finish(); }, 12000);
+}
+function gpsUndo() { S.gps.pop(); persist(); renderGPS(); }
+function gpsClear() { if (S.gps.length && !confirm('എല്ലാ GPS പോയിന്റുകളും മായ്ക്കണോ?')) return; S.gps = []; persist(); renderGPS(); }
+function renderGPS() {
+  const box = document.getElementById('gpsResult');
+  const g = S.gps;
+  if (!g.length) { box.innerHTML = ''; return; }
+  const L = gpsLocal(g);
+  let html = `<div class="card"><h2>പോയിന്റുകൾ (${g.length})</h2><table class="t"><tr><th>മൂല</th><th>അക്ഷാംശം, രേഖാംശം</th><th>±മീ</th></tr>${g.map((p, i) => `<tr><td><b>${lbl(i)}</b></td><td>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</td><td class="n">${fmt(p.acc, 1)}</td></tr>`).join('')}</table></div>`;
+  if (g.length >= 3) {
+    let A2 = 0, per = 0; const sides = [];
+    for (let i = 0; i < L.length; i++) { const p = L[i], q = L[mod(i + 1, L.length)]; A2 += p.x * q.y - q.x * p.y; const d = dist(p, q); per += d; sides.push(d); }
+    const area = Math.abs(A2) / 2;
+    const accAvg = g.reduce((a, p) => a + p.acc, 0) / g.length;
+    const errArea = per * accAvg; // rough band
+    html += `<div class="card"><div class="bigsub">GPS പ്രകാരം ഏകദേശ വിസ്തീർണം</div>
+      <div class="big">${fmt(area / SQM_PER.cent)} സെന്റ്</div>
+      <div class="bigsub">${fmt(area)} ച.മീ • ചുറ്റളവ് ${fmt(per)} മീ</div>
+      <div class="msg warn" style="margin-top:8px">ശരാശരി GPS പിശക് ±${fmt(accAvg, 1)} മീ ആയതിനാൽ വിസ്തീർണത്തിൽ ഏകദേശം ±${fmt(errArea / SQM_PER.cent, 1)} സെന്റ് വരെ വ്യത്യാസം വരാം.</div>
+      <table class="t" style="margin-top:8px"><tr><th>വശം</th><th>നീളം (മീ)</th></tr>${sides.map((s, i) => `<tr><td>${lbl(i)}${lbl(mod(i + 1, g.length))}</td><td class="n">${fmt(s)}</td></tr>`).join('')}</table>
+      <div class="btns" style="margin-top:10px"><button type="button" class="btn pri" onclick="gpsToTape()">→ ഈ ആകൃതി ടേപ്പ് അളവിലേക്ക് പകർത്തുക</button></div>
+      <p class="hint" style="margin-top:6px">പകർത്തിയ ശേഷം ടേപ്പ് ഉപയോഗിച്ച് യഥാർത്ഥ നീളങ്ങൾ അളന്ന് "അളവ്" പേജിൽ മാറ്റിയാൽ കൃത്യമായ വിസ്തീർണം കിട്ടും.</p></div>`;
+  }
+  box.innerHTML = html;
+}
+function gpsToTape() {
+  const g = S.gps; if (g.length < 3) return;
+  if (g.length > 26) { toast('പരമാവധി 26 മൂലകൾ'); return; }
+  if (!confirm('ഇപ്പോഴത്തെ ടേപ്പ് അളവുകൾ മാറ്റി GPS ആകൃതി ചേർക്കണോ?')) return;
+  const L = gpsLocal(g), n = L.length;
+  let A2 = 0; for (let i = 0; i < n; i++) { const p = L[i], q = L[mod(i + 1, n)]; A2 += p.x * q.y - q.x * p.y; }
+  const f = LEN[S.unit] || 1;
+  S.n = n; S.base = 0; S.dir = A2 > 0 ? 'ccw' : 'cw'; S.flips = {}; S.diags = {};
+  S.sides = L.map((p, i) => (dist(p, L[mod(i + 1, n)]) / f).toFixed(2));
+  diagTargets(n, 0).forEach(v => { S.diags[v] = (dist(L[0], L[v]) / f).toFixed(2); });
+  // flips: compare placement side with GPS geometry
+  const sign = S.dir === 'ccw' ? 1 : -1;
+  for (let j = 1; j <= n - 2; j++) {
+    const a = j, v = j + 1;
+    const cr = (L[a].x - L[0].x) * (L[v].y - L[0].y) - (L[a].y - L[0].y) * (L[v].x - L[0].x);
+    if (Math.sign(cr) !== sign && Math.abs(cr) > 1e-9) S.flips[v] = true;
+  }
+  const brg = mod(Math.atan2(L[1].x - L[0].x, L[1].y - L[0].y) * 180 / Math.PI, 360);
+  S.bearing = String(Math.round(brg));
+  renderAll(); showTab('measure'); toast('GPS ആകൃതി പകർത്തി - ടേപ്പ് അളവുകൾ ഉപയോഗിച്ച് തിരുത്തുക');
+}
+
+// ============================================================================
+function renderAll() { renderDetails(); renderSketchOpts(); renderMeasure(); }
+renderAll();
+
+// Offline install support (works when served over https, e.g. GitHub Pages)
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
+</body>
+</html>

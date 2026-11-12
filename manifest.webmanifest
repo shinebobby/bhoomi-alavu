@@ -1,0 +1,17 @@
+{
+  "name": "ഭൂമി അളവ് & സ്കെച്ച്",
+  "short_name": "ഭൂമി അളവ്",
+  "description": "ടേപ്പ് / GPS അളവുകളിൽ നിന്ന് ഭൂമിയുടെ വിസ്തീർണവും സ്കെയിലിലുള്ള സ്കെച്ചും",
+  "lang": "ml",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f1f5f9",
+  "theme_color": "#065f46",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
